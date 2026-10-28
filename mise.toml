@@ -1,0 +1,35 @@
+[tools]
+node = "26"
+pnpm = "10"
+
+[tasks.dev]
+description = "開発サーバーを起動 (Vite + Cloudflare Workers)"
+run = "pnpm run dev"
+
+[tasks.build]
+description = "本番用ビルド (Vite)"
+run = "pnpm run build"
+
+[tasks.preview]
+description = "Wrangler によるローカルプレビュー"
+run = "pnpm run preview"
+
+[tasks.deploy]
+description = "Cloudflare Workers へデプロイ"
+depends = ["build"]
+run = "pnpm run deploy"
+
+[tasks."db:migrate:local"]
+description = "ローカル D1 データベースへのマイグレーション"
+run = "pnpm run db:migrate:local"
+
+[tasks."db:migrate:remote"]
+description = "リモート（本番）D1 データベースへのマイグレーション"
+run = "pnpm run db:migrate:remote"
+
+[tasks.setup]
+description = "初回セットアップ（依存インストール & ローカルDB初期化）"
+run = """
+pnpm install
+pnpm run db:migrate:local
+"""

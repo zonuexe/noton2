@@ -1,0 +1,20 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "noton2",
+  "main": "./src/index.ts",
+  "compatibility_date": "2025-02-14",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./dist/client"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "noton2-db",
+      "database_id": "xxxx-local-noton2-db"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}
