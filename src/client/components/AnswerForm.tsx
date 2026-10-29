@@ -124,9 +124,8 @@ export const AnswerForm = defineVaporComponent({
     }
 
     const getNextToggleStatus = (current: AnswerStatus): AnswerStatus => {
-      if (current === 'available') return 'maybe'
+      if (current === 'available' || current === 'favorite') return 'maybe'
       if (current === 'maybe') return 'unavailable'
-      if (current === 'unavailable') return 'favorite'
       return 'available'
     }
 
@@ -448,21 +447,17 @@ export const AnswerForm = defineVaporComponent({
                             {slotsInHour.map((slot) => {
                               const status = answers.value[slot.id] || 'available'
 
-                              let cellClass = 'bg-sky-400 text-white font-bold hover:bg-sky-500'
+                              let cellClass = 'bg-[#58b4ff] text-white font-bold hover:bg-sky-500'
                               let symbol = '•'
                               let title = `${slot.startTime}〜${slot.endTime} ◯（参加可能）`
 
-                              if (status === 'favorite') {
-                                cellClass = 'bg-blue-600 text-white font-bold hover:bg-blue-700'
-                                symbol = '◎'
-                                title = `${slot.startTime}〜${slot.endTime} ◎（希望）`
-                              } else if (status === 'maybe') {
-                                cellClass = 'bg-amber-400 text-white font-bold hover:bg-amber-500'
+                              if (status === 'maybe') {
+                                cellClass = 'bg-[#f5a623] text-white font-bold hover:bg-amber-500'
                                 symbol = '▲'
                                 title = `${slot.startTime}〜${slot.endTime} △（未定）`
                               } else if (status === 'unavailable') {
                                 cellClass =
-                                  'bg-stone-300 text-stone-600 font-bold hover:bg-stone-400 hover:text-white'
+                                  'bg-[#d4d4d4] text-stone-600 font-bold hover:bg-stone-400 hover:text-white'
                                 symbol = '×'
                                 title = `${slot.startTime}〜${slot.endTime} ✕（不可）`
                               }
