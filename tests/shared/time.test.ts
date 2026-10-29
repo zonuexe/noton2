@@ -223,17 +223,17 @@ describe('shared/time - 日時・スロット計算ロジック', () => {
       expect(sanitizeHttpUrl(null)).toBeNull()
     })
 
-    it('TIME_PRESETS: 「終日」を含まず、「全日 (08:00〜22:00)」を先頭に自然な順序で定義されていること', () => {
+    it('TIME_PRESETS: 「終日」を含まず、「午前」「午後」「夜」「日中」「全日」「飲み会」の順序で定義されていること', () => {
       expect(TIME_PRESETS.some((p) => p.label.includes('終日'))).toBe(false)
       expect(TIME_PRESETS.map((p) => p.shortLabel)).toEqual([
-        '全日',
         '午前',
-        '日中',
         '午後',
         '夜',
+        '日中',
+        '全日',
         '飲み会',
       ])
-      expect(TIME_PRESETS[0]).toMatchObject({
+      expect(TIME_PRESETS.find((p) => p.key === 'all-day')).toMatchObject({
         shortLabel: '全日',
         label: '全日 (08:00〜22:00)',
         start: '08:00',

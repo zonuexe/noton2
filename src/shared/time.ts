@@ -19,13 +19,13 @@ export interface TimePreset {
   end: string
 }
 
-// 時間帯プリセット定義（1日の流れ・広さ順）
+// 時間帯プリセット定義（午前 -> 午後 -> 夜 -> 日中 -> 全日 -> 飲み会）
 export const TIME_PRESETS: readonly TimePreset[] = [
-  { key: 'all-day', shortLabel: '全日', label: '全日 (08:00〜22:00)', start: '08:00', end: '22:00' },
   { key: 'morning', shortLabel: '午前', label: '午前 (08:00〜12:00)', start: '08:00', end: '12:00' },
-  { key: 'daytime', shortLabel: '日中', label: '日中 (10:00〜19:00)', start: '10:00', end: '19:00' },
   { key: 'afternoon', shortLabel: '午後', label: '午後 (13:00〜18:00)', start: '13:00', end: '18:00' },
   { key: 'evening', shortLabel: '夜', label: '夜 (18:00〜22:00)', start: '18:00', end: '22:00' },
+  { key: 'daytime', shortLabel: '日中', label: '日中 (10:00〜19:00)', start: '10:00', end: '19:00' },
+  { key: 'all-day', shortLabel: '全日', label: '全日 (08:00〜22:00)', start: '08:00', end: '22:00' },
   { key: 'party', shortLabel: '飲み会', label: '飲み会 (19:00〜23:00)', start: '19:00', end: '23:00' },
 ] as const
 
