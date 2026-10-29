@@ -4,4 +4,8 @@
   body {
     font-family: 'Noto Sans JP', sans-serif;
   }
+  dfn {
+    font-style: normal;
+    font-weight: bold;
+  }
 }
