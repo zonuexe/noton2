@@ -25,8 +25,8 @@ export const AnswerForm = defineVaporComponent({
     const participantId = ref<string | null>(null)
     const editToken = ref<string | null>(null)
 
-    // 現在選択中の塗りツール ('toggle' または 特定のステータス)
-    const activeTool = ref<'toggle' | AnswerStatus>('available')
+    // 現在選択中の塗りツール ('toggle' または 特定のステータス) - デフォルトは順次切替
+    const activeTool = ref<'toggle' | AnswerStatus>('toggle')
 
     // ドラッグ塗り状態
     const isDragging = ref(false)
@@ -301,6 +301,18 @@ export const AnswerForm = defineVaporComponent({
               <span class="text-xs font-bold text-stone-700 mr-1">塗りツール:</span>
               <button
                 type="button"
+                onClick={() => (activeTool.value = 'toggle')}
+                class={`px-3 py-1.5 text-xs font-bold rounded-xl transition border flex items-center gap-1 ${
+                  activeTool.value === 'toggle'
+                    ? 'bg-stone-800 text-white border-stone-800 shadow-sm ring-2 ring-stone-300'
+                    : 'bg-white text-stone-700 border-stone-300 hover:bg-stone-100'
+                }`}
+              >
+                <span>🔄</span>
+                <span>順次切替</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => (activeTool.value = 'available')}
                 class={`px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1 border ${
                   activeTool.value === 'available'
@@ -334,17 +346,6 @@ export const AnswerForm = defineVaporComponent({
               >
                 <span>×</span>
                 <span>✕（不可）を塗る</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => (activeTool.value = 'toggle')}
-                class={`px-2.5 py-1.5 text-xs font-bold rounded-xl transition border ${
-                  activeTool.value === 'toggle'
-                    ? 'bg-stone-800 text-white border-stone-800 shadow-sm ring-2 ring-stone-300'
-                    : 'bg-white text-stone-700 border-stone-300 hover:bg-stone-100'
-                }`}
-              >
-                🔄 順次切替
               </button>
             </div>
 
