@@ -27,6 +27,10 @@ run = "pnpm run db:migrate:local"
 description = "リモート（本番）D1 データベースへのマイグレーション"
 run = "pnpm run db:migrate:remote"
 
+[tasks.cf]
+description = "Cloudflare CLI (cf)"
+run = "pnpm exec cf"
+
 [tasks.setup]
 description = "初回セットアップ（依存インストール & ローカルDB初期化）"
 run = """
