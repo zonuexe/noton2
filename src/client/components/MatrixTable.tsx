@@ -5,6 +5,7 @@
 import { defineVaporComponent, computed, ref } from 'vue'
 import type { AnswerStatus, EventDetail } from '@/shared/types'
 import { TIMELINE_HOURS, formatDateLabel, getSlotsForHour } from '@/shared/time'
+import { calculateSlotSummary } from '@/shared/state'
 
 export const MatrixTable = defineVaporComponent({
   props: {
@@ -369,32 +370,23 @@ export const MatrixTable = defineVaporComponent({
                                 return (
                                   <div key={hour} class="flex h-full">
                                     {slotsInHour.map((slot) => {
-                                      let okCount = 0
-                                      let maybeCount = 0
-                                      props.event.participants.forEach((p) => {
-                                        const st = p.answers ? p.answers[slot.id] : undefined
-                                        if (st === 'favorite' || st === 'available') {
-                                          okCount++
-                                        } else if (st === 'maybe') {
-                                          maybeCount++
-                                        }
-                                      })
+                                      const summary = calculateSlotSummary(props.event.participants, slot.id)
 
                                       let summaryClass = 'text-[11px] font-bold'
-                                      let displayText = String(okCount)
+                                      let displayText = String(summary.okCount)
 
-                                      if (okCount === 0) {
+                                      if (summary.statusLevel === 'empty') {
                                         summaryClass +=
                                           ' bg-rose-100 text-rose-700 font-extrabold rounded-xs'
                                         displayText = '0'
-                                      } else if (okCount === 1) {
+                                      } else if (summary.statusLevel === 'single') {
                                         summaryClass += ' bg-sky-50 text-sky-800 rounded-xs'
                                       } else {
                                         summaryClass +=
                                           ' bg-sky-100 text-sky-900 font-extrabold rounded-xs'
                                       }
 
-                                      const tooltip = `${slot.startTime}〜${slot.endTime} 参加可能: ${okCount}名 (未定: ${maybeCount}名)`
+                                      const tooltip = `${slot.startTime}〜${slot.endTime} 参加可能: ${summary.okCount}名 (未定: ${summary.maybeCount}名)`
 
                                       return (
                                         <div

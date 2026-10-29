@@ -5,6 +5,12 @@
 import { defineVaporComponent, ref, computed, onMounted } from 'vue'
 import type { AnswerStatus, EventDetail, SubmitResponseInput } from '@/shared/types'
 import { TIMELINE_HOURS, formatDateLabel, getSlotsForHour } from '@/shared/time'
+import {
+  type AnswerTool,
+  resolveTargetStatus,
+  updateSlotAnswer,
+  bulkUpdateAnswers,
+} from '@/shared/state'
 
 export const AnswerForm = defineVaporComponent({
   props: {
@@ -26,7 +32,7 @@ export const AnswerForm = defineVaporComponent({
     const editToken = ref<string | null>(null)
 
     // 現在選択中の塗りツール ('toggle' または 特定のステータス) - デフォルトは順次切替
-    const activeTool = ref<'toggle' | AnswerStatus>('toggle')
+    const activeTool = ref<AnswerTool>('toggle')
 
     // ドラッグ塗り状態
     const isDragging = ref(false)
@@ -91,55 +97,26 @@ export const AnswerForm = defineVaporComponent({
 
     // 全スロットを一括設定
     const setAll = (status: AnswerStatus) => {
-      const next: Record<string, AnswerStatus> = {}
-      props.event.slots.forEach((s) => {
-        next[s.id] = status
-      })
-      answers.value = next
+      answers.value = bulkUpdateAnswers(props.event.slots, answers.value, status)
     }
 
     // 特定日の全スロットを一括設定
     const setDateAll = (dateStr: string, status: AnswerStatus) => {
-      const next = { ...answers.value }
-      props.event.slots
-        .filter((s) => s.slotDate === dateStr)
-        .forEach((s) => {
-          next[s.id] = status
-        })
-      answers.value = next
+      answers.value = bulkUpdateAnswers(props.event.slots, answers.value, status, dateStr)
     }
 
     // 単一セルのステータスを更新 (immutable代入で確実に再描画)
     const applyStatusToSlot = (slotId: string, status?: AnswerStatus) => {
-      const targetStatus =
-        status ||
-        (activeTool.value !== 'toggle'
-          ? activeTool.value
-          : getNextToggleStatus(answers.value[slotId] || 'available'))
-
-      answers.value = {
-        ...answers.value,
-        [slotId]: targetStatus,
-      }
-    }
-
-    const getNextToggleStatus = (current: AnswerStatus): AnswerStatus => {
-      if (current === 'available' || current === 'favorite') return 'maybe'
-      if (current === 'maybe') return 'unavailable'
-      return 'available'
+      const targetStatus = status || resolveTargetStatus(activeTool.value, answers.value[slotId])
+      answers.value = updateSlotAnswer(answers.value, slotId, targetStatus)
     }
 
     // マウスダウン（ドラッグ開始）
     const handleMouseDown = (slotId: string) => {
       isDragging.value = true
-      if (activeTool.value === 'toggle') {
-        const next = getNextToggleStatus(answers.value[slotId] || 'available')
-        dragTargetStatus.value = next
-        applyStatusToSlot(slotId, next)
-      } else {
-        dragTargetStatus.value = activeTool.value
-        applyStatusToSlot(slotId, activeTool.value)
-      }
+      const target = resolveTargetStatus(activeTool.value, answers.value[slotId])
+      dragTargetStatus.value = target
+      applyStatusToSlot(slotId, target)
     }
 
     // マウスオーバー（ドラッグ中に塗る）
