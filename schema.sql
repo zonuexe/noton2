@@ -1,3 +1,21 @@
+-- This Source Code Form is subject to the terms of the Mozilla Public
+-- License, v. 2.0. If a copy of the MPL was not distributed with this
+-- file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+-- users table (GitHub OAuth 連携ユーザー)
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    github_id INTEGER UNIQUE NOT NULL,
+    username TEXT NOT NULL,
+    display_name TEXT,
+    avatar_url TEXT,
+    profile_url TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_github_id ON users(github_id);
+
 -- events table
 CREATE TABLE IF NOT EXISTS events (
     id TEXT PRIMARY KEY,
@@ -5,10 +23,14 @@ CREATE TABLE IF NOT EXISTS events (
     title TEXT NOT NULL,
     description TEXT,
     organizer_name TEXT NOT NULL,
+    creator_user_id TEXT,
     confirmed_slot_id TEXT,
     created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now'))
+    updated_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY(creator_user_id) REFERENCES users(id) ON DELETE SET NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_events_creator ON events(creator_user_id);
 
 -- time_slots table
 CREATE TABLE IF NOT EXISTS time_slots (

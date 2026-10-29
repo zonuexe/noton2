@@ -1,12 +1,29 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 import { defineVaporComponent, ref } from 'vue'
 import type { EventDetail } from '@/shared/types'
 
-export const AdminControls = defineVaporComponent((props: {
-  event: EventDetail
-  adminToken: string
-  onReload: () => void
-}) => {
-  const selectedSlotId = ref<string>(props.event.confirmedSlotId || props.event.slots[0]?.id || '')
+export const AdminControls = defineVaporComponent({
+  props: {
+    event: {
+      type: Object as () => EventDetail,
+      required: true,
+    },
+    adminToken: {
+      type: String,
+      default: '',
+    },
+    onReload: {
+      type: Function as unknown as () => () => void,
+      required: true,
+    },
+  },
+  setup(props) {
+    const selectedSlotId = ref<string>(
+      props.event.confirmedSlotId || props.event.slots[0]?.id || ''
+    )
     const isUpdating = ref(false)
     const isCopiedMessage = ref(false)
     const isCopiedShareUrl = ref(false)
@@ -27,7 +44,7 @@ export const AdminControls = defineVaporComponent((props: {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            adminToken: props.adminToken,
+            adminToken: props.adminToken || undefined,
             slotId,
           }),
         })
@@ -48,7 +65,11 @@ export const AdminControls = defineVaporComponent((props: {
 
     // イベント削除
     const handleDeleteEvent = async () => {
-      if (!confirm('このイベントと全ての回答データを削除してもよろしいですか？この操作は取り消せません。')) {
+      if (
+        !confirm(
+          'このイベントと全ての回答データを削除してもよろしいですか？この操作は取り消せません。'
+        )
+      ) {
         return
       }
 
@@ -57,7 +78,7 @@ export const AdminControls = defineVaporComponent((props: {
         const res = await fetch(`/api/events/${props.event.id}`, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ adminToken: props.adminToken }),
+          body: JSON.stringify({ adminToken: props.adminToken || undefined }),
         })
 
         if (!res.ok) {
@@ -136,9 +157,7 @@ ${shareUrl}
 
         {/* 日程確定セクション */}
         <div class="space-y-3">
-          <label class="block text-xs font-bold text-amber-900">
-            開催日時の確定
-          </label>
+          <label class="block text-xs font-bold text-amber-900">開催日時の確定</label>
           <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
             <select
               value={selectedSlotId.value}
@@ -222,4 +241,5 @@ ${shareUrl}
         </div>
       </div>
     )
+  },
 })

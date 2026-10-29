@@ -1,29 +1,47 @@
-import { defineVaporComponent, ref, onMounted } from 'vue'
-import type { AnswerStatus, EventDetail, SubmitResponseInput } from '@/shared/types'
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-export const AnswerForm = defineVaporComponent((props: { event: EventDetail; onSuccess: () => void }) => {
-  const name = ref('')
+import { defineVaporComponent, ref, computed, onMounted } from 'vue'
+import type { AnswerStatus, EventDetail, SubmitResponseInput } from '@/shared/types'
+import { TIMELINE_HOURS, formatDateLabel, findSlotForHour } from '@/shared/time'
+
+export const AnswerForm = defineVaporComponent({
+  props: {
+    event: {
+      type: Object as () => EventDetail,
+      required: true,
+    },
+    onSuccess: {
+      type: Function as unknown as () => () => void,
+      required: true,
+    },
+  },
+  setup(props) {
+    const name = ref('')
     const comment = ref('')
     const answers = ref<Record<string, AnswerStatus>>({})
     const participantId = ref<string | null>(null)
     const editToken = ref<string | null>(null)
 
+    // 現在選択中の塗りツール ('toggle' または 特定のステータス)
+    const activeTool = ref<'toggle' | AnswerStatus>('toggle')
+
     const isSubmitting = ref(false)
     const errorMessage = ref('')
     const successMessage = ref('')
 
-    // 日付フォーマット
-    const formatDateLabel = (dateStr: string) => {
-      const parts = dateStr.split('-')
-      if (parts.length < 3) return dateStr
-      const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]))
-      const dayNames = ['日', '月', '火', '水', '木', '金', '土']
-      return `${Number(parts[1])}/${Number(parts[2])} (${dayNames[d.getDay()]})`
-    }
+    // イベントに含まれるユニークな日付一覧 ('YYYY-MM-DD')
+    const uniqueDates = computed(() => {
+      const dateSet = new Set<string>()
+      props.event.slots.forEach((s) => dateSet.add(s.slotDate))
+      return Array.from(dateSet).sort()
+    })
 
     // localStorage から過去の自分の回答を取得
     onMounted(() => {
       try {
+        if (typeof window === 'undefined') return
         const stored = localStorage.getItem(`noton2_resp_${props.event.id}`)
         if (stored) {
           const parsed = JSON.parse(stored)
@@ -32,15 +50,12 @@ export const AnswerForm = defineVaporComponent((props: { event: EventDetail; onS
             editToken.value = parsed.editToken
             name.value = parsed.name || ''
 
-            // 参加者リストから最新の回答・コメントを復元
-            const existingParticipant = props.event.participants.find(
-              (p) => p.id === parsed.participantId
-            )
-            if (existingParticipant) {
-              name.value = existingParticipant.name
-              comment.value = existingParticipant.comment || ''
-              if (existingParticipant.answers) {
-                answers.value = { ...existingParticipant.answers }
+            const existing = props.event.participants.find((p) => p.id === parsed.participantId)
+            if (existing) {
+              name.value = existing.name
+              comment.value = existing.comment || ''
+              if (existing.answers) {
+                answers.value = { ...existing.answers }
               }
             }
           }
@@ -57,14 +72,40 @@ export const AnswerForm = defineVaporComponent((props: { event: EventDetail; onS
       })
     })
 
+    // 全スロットを一括設定
     const setAll = (status: AnswerStatus) => {
       props.event.slots.forEach((s) => {
         answers.value[s.id] = status
       })
     }
 
-    const setSlotStatus = (slotId: string, status: AnswerStatus) => {
-      answers.value[slotId] = status
+    // 特定の日付の全スロットを一括設定
+    const setDateAll = (dateStr: string, status: AnswerStatus) => {
+      props.event.slots
+        .filter((s) => s.slotDate === dateStr)
+        .forEach((s) => {
+          answers.value[s.id] = status
+        })
+    }
+
+    // セルクリック時のトグルまたは塗り
+    const handleCellClick = (slotId: string) => {
+      if (activeTool.value !== 'toggle') {
+        answers.value[slotId] = activeTool.value
+        return
+      }
+
+      // トグル順: available(◯) -> maybe(△) -> unavailable(✕) -> favorite(◎) -> available(◯)
+      const current = answers.value[slotId] || 'available'
+      if (current === 'available') {
+        answers.value[slotId] = 'maybe'
+      } else if (current === 'maybe') {
+        answers.value[slotId] = 'unavailable'
+      } else if (current === 'unavailable') {
+        answers.value[slotId] = 'favorite'
+      } else {
+        answers.value[slotId] = 'available'
+      }
     }
 
     const handleSubmit = async () => {
@@ -115,7 +156,6 @@ export const AnswerForm = defineVaporComponent((props: { event: EventDetail; onS
         successMessage.value = participantId.value ? '回答を更新しました！' : '回答を登録しました！'
         setTimeout(() => (successMessage.value = ''), 4000)
 
-        // 親にリロード通知
         props.onSuccess()
       } catch (err: any) {
         errorMessage.value = err.message || '送信に失敗しました'
@@ -136,15 +176,21 @@ export const AnswerForm = defineVaporComponent((props: { event: EventDetail; onS
     }
 
     return (
-      <div class="bg-white rounded-3xl p-6 md:p-8 border border-rose-100 shadow-xl shadow-rose-100/40 space-y-6">
-        <div class="flex items-center justify-between border-b border-rose-100 pb-4">
+      <div
+        id="answer-form-section"
+        class="bg-white rounded-3xl p-4 sm:p-6 md:p-8 border border-stone-200 shadow-xl shadow-stone-100/50 space-y-6"
+      >
+        {/* 見出し */}
+        <div class="flex items-center justify-between border-b border-stone-200 pb-4">
           <div>
-            <h2 class="text-lg font-bold text-stone-900 font-['M_PLUS_Rounded_1c'] flex items-center gap-2">
-              <span>✍️</span>
-              <span>{participantId.value ? '回答を編集する' : '出欠を回答する'}</span>
+            <h2 class="text-lg md:text-xl font-bold text-stone-900 font-['M_PLUS_Rounded_1c'] flex items-center gap-2">
+              <span class="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-rose-100 text-base">
+                ✍️
+              </span>
+              <span>{participantId.value ? '回答を編集する' : 'あなたの予定を追加する'}</span>
             </h2>
             <p class="text-xs text-stone-500 mt-0.5">
-              お名前を入力して、各日程の希望・都合を選んでください。
+              お名前を入力し、タイムラインの各時間をタップして出欠（◯・△・✕）を選択してください。
             </p>
           </div>
           {participantId.value ? (
@@ -181,133 +227,195 @@ export const AnswerForm = defineVaporComponent((props: { event: EventDetail; onS
               placeholder="例: たなか、田中（19時以降）"
               value={name.value}
               onInput={(e: any) => (name.value = e.target.value)}
-              class="w-full border border-stone-200 focus:border-rose-400 focus:ring-2 focus:ring-rose-200 rounded-xl px-3 py-2 text-sm outline-none"
+              class="w-full border border-stone-200 focus:border-rose-400 focus:ring-2 focus:ring-rose-200 rounded-xl px-3.5 py-2 text-sm outline-none font-medium"
             />
           </div>
           <div>
-            <label class="block text-xs font-bold text-stone-700 mb-1">
-              コメント（任意）
-            </label>
+            <label class="block text-xs font-bold text-stone-700 mb-1">コメント（任意）</label>
             <input
               type="text"
               placeholder="例: 10分ほど遅れるかもしれません"
               value={comment.value}
               onInput={(e: any) => (comment.value = e.target.value)}
-              class="w-full border border-stone-200 focus:border-rose-400 focus:ring-2 focus:ring-rose-200 rounded-xl px-3 py-2 text-sm outline-none"
+              class="w-full border border-stone-200 focus:border-rose-400 focus:ring-2 focus:ring-rose-200 rounded-xl px-3.5 py-2 text-sm outline-none font-medium"
             />
           </div>
         </div>
 
-        {/* 一括操作ボタン */}
-        <div class="flex items-center justify-between pt-2">
-          <span class="text-xs font-bold text-stone-700">各日程の出欠・希望</span>
-          <div class="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setAll('favorite')}
-              class="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs rounded-lg font-bold border border-rose-200"
-            >
-              すべて◎
-            </button>
-            <button
-              type="button"
-              onClick={() => setAll('available')}
-              class="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs rounded-lg font-bold border border-emerald-200"
-            >
-              すべて◯
-            </button>
-            <button
-              type="button"
-              onClick={() => setAll('unavailable')}
-              class="px-2.5 py-1 bg-stone-100 hover:bg-stone-200 text-stone-600 text-xs rounded-lg font-bold border border-stone-200"
-            >
-              すべて✕
-            </button>
+        {/* タイムライン入力操作バー */}
+        <div class="bg-stone-50 p-3 sm:p-4 rounded-2xl border border-stone-200 space-y-3">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="text-xs font-bold text-stone-700 mr-1">入力モード:</span>
+              <button
+                type="button"
+                onClick={() => (activeTool.value = 'toggle')}
+                class={`px-2.5 py-1 text-xs font-bold rounded-lg transition border ${
+                  activeTool.value === 'toggle'
+                    ? 'bg-stone-800 text-white border-stone-800 shadow-xs'
+                    : 'bg-white text-stone-700 border-stone-300 hover:bg-stone-100'
+                }`}
+              >
+                🔄 タップで切替
+              </button>
+              <button
+                type="button"
+                onClick={() => (activeTool.value = 'available')}
+                class={`px-2.5 py-1 text-xs font-bold rounded-lg transition border ${
+                  activeTool.value === 'available'
+                    ? 'bg-sky-500 text-white border-sky-500 shadow-xs'
+                    : 'bg-white text-sky-700 border-sky-300 hover:bg-sky-50'
+                }`}
+              >
+                • ◯を塗る
+              </button>
+              <button
+                type="button"
+                onClick={() => (activeTool.value = 'maybe')}
+                class={`px-2.5 py-1 text-xs font-bold rounded-lg transition border ${
+                  activeTool.value === 'maybe'
+                    ? 'bg-amber-500 text-white border-amber-500 shadow-xs'
+                    : 'bg-white text-amber-700 border-amber-300 hover:bg-amber-50'
+                }`}
+              >
+                ▲ △を塗る
+              </button>
+              <button
+                type="button"
+                onClick={() => (activeTool.value = 'unavailable')}
+                class={`px-2.5 py-1 text-xs font-bold rounded-lg transition border ${
+                  activeTool.value === 'unavailable'
+                    ? 'bg-stone-500 text-white border-stone-500 shadow-xs'
+                    : 'bg-white text-stone-600 border-stone-300 hover:bg-stone-100'
+                }`}
+              >
+                × ✕を塗る
+              </button>
+            </div>
+
+            {/* 一括操作 */}
+            <div class="flex items-center gap-1.5">
+              <span class="text-[11px] text-stone-500 font-bold">全枠一括:</span>
+              <button
+                type="button"
+                onClick={() => setAll('available')}
+                class="px-2 py-0.5 bg-sky-100 hover:bg-sky-200 text-sky-800 text-xs rounded-md font-bold transition"
+              >
+                すべて◯
+              </button>
+              <button
+                type="button"
+                onClick={() => setAll('unavailable')}
+                class="px-2 py-0.5 bg-stone-200 hover:bg-stone-300 text-stone-700 text-xs rounded-md font-bold transition"
+              >
+                すべて✕
+              </button>
+            </div>
           </div>
+          <p class="text-[11px] text-stone-500">
+            タイムライン上のマスをクリックすると出欠が変わります。まずは「すべて◯」にしてから、都合の悪い時間だけ✕にするのがおすすめです。
+          </p>
         </div>
 
-        {/* スロットごとの 4段階ボタンリスト */}
-        <div class="space-y-2.5 max-h-96 overflow-y-auto pr-1">
-          {props.event.slots.map((slot) => {
-            const current = answers.value[slot.id] || 'available'
-            const isConfirmed = props.event.confirmedSlotId === slot.id
+        {/* 日付ごとのタイムライン入力リスト */}
+        <div class="space-y-3">
+          {uniqueDates.value.map((dateStr) => {
+            const dateSlots = props.event.slots.filter((s) => s.slotDate === dateStr)
 
             return (
               <div
-                key={slot.id}
-                class={`flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-2xl border transition-all ${
-                  isConfirmed
-                    ? 'bg-amber-50/80 border-amber-300 ring-2 ring-amber-300'
-                    : 'bg-stone-50/60 border-stone-200 hover:border-rose-200'
-                }`}
+                key={dateStr}
+                class="bg-stone-50/70 p-3 sm:p-4 rounded-2xl border border-stone-200 transition hover:border-stone-300"
               >
-                <div class="flex items-center gap-2 mb-2 sm:mb-0">
-                  {isConfirmed ? (
-                    <span class="px-2 py-0.5 bg-amber-500 text-white text-[10px] font-extrabold rounded-full">
-                      確定日時
-                    </span>
-                  ) : null}
-                  <span class="font-bold text-sm text-stone-800">
-                    {formatDateLabel(slot.slotDate)}
-                  </span>
-                  <span class="font-mono text-xs text-rose-700 font-bold bg-white px-2 py-0.5 rounded-md border border-rose-100">
-                    {slot.startTime}〜{slot.endTime}
-                  </span>
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-2">
+                  <div class="font-bold text-sm text-stone-900 font-['M_PLUS_Rounded_1c']">
+                    {formatDateLabel(dateStr)}
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-[11px] text-stone-400">この日を:</span>
+                    <button
+                      type="button"
+                      onClick={() => setDateAll(dateStr, 'available')}
+                      class="px-2 py-0.5 bg-white border border-sky-200 hover:bg-sky-50 text-sky-700 text-[11px] font-bold rounded"
+                    >
+                      ◯にする
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDateAll(dateStr, 'unavailable')}
+                      class="px-2 py-0.5 bg-white border border-stone-200 hover:bg-stone-100 text-stone-600 text-[11px] font-bold rounded"
+                    >
+                      ✕にする
+                    </button>
+                  </div>
                 </div>
 
-                {/* 4段階ボタン */}
-                <div class="grid grid-cols-4 gap-1.5 w-full sm:w-auto">
-                  <button
-                    type="button"
-                    onClick={() => setSlotStatus(slot.id, 'favorite')}
-                    class={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 ${
-                      current === 'favorite'
-                        ? 'bg-rose-500 text-white shadow-sm ring-2 ring-rose-300 font-extrabold'
-                        : 'bg-white text-rose-600 border border-rose-200 hover:bg-rose-50'
-                    }`}
-                  >
-                    <span>◎</span>
-                    <span class="text-[11px]">希望</span>
-                  </button>
+                {/* タイムライングリッド */}
+                <div class="overflow-x-auto overflow-y-hidden pb-1 -mx-2 px-2 md:mx-0 md:px-0">
+                  <div class="min-w-[700px]">
+                    {/* 時間軸ヘッダー */}
+                    <div class="flex border-b border-stone-200 mb-1">
+                      {TIMELINE_HOURS.map((hour) => (
+                        <div
+                          key={hour}
+                          class="w-[28px] sm:w-[32px] text-center text-[11px] text-stone-500 font-mono select-none"
+                        >
+                          {hour}
+                        </div>
+                      ))}
+                    </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setSlotStatus(slot.id, 'available')}
-                    class={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 ${
-                      current === 'available'
-                        ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-300 font-extrabold'
-                        : 'bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50'
-                    }`}
-                  >
-                    <span>◯</span>
-                    <span class="text-[11px]">可</span>
-                  </button>
+                    {/* セル列（クリック可能） */}
+                    <div class="flex h-8 sm:h-9 items-center">
+                      {TIMELINE_HOURS.map((hour) => {
+                        const slot = findSlotForHour(dateSlots, dateStr, hour)
 
-                  <button
-                    type="button"
-                    onClick={() => setSlotStatus(slot.id, 'maybe')}
-                    class={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 ${
-                      current === 'maybe'
-                        ? 'bg-amber-500 text-white shadow-sm ring-2 ring-amber-300 font-extrabold'
-                        : 'bg-white text-amber-700 border border-amber-200 hover:bg-amber-50'
-                    }`}
-                  >
-                    <span>△</span>
-                    <span class="text-[11px]">未定</span>
-                  </button>
+                        // 枠外
+                        if (!slot) {
+                          return (
+                            <div
+                              key={hour}
+                              class="w-[28px] sm:w-[32px] h-full bg-stone-200/70 border-r border-white/60 first:rounded-l last:rounded-r"
+                              title={`${hour}:00 枠外`}
+                            />
+                          )
+                        }
 
-                  <button
-                    type="button"
-                    onClick={() => setSlotStatus(slot.id, 'unavailable')}
-                    class={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 ${
-                      current === 'unavailable'
-                        ? 'bg-stone-500 text-white shadow-sm ring-2 ring-stone-300 font-extrabold'
-                        : 'bg-white text-stone-500 border border-stone-200 hover:bg-stone-100'
-                    }`}
-                  >
-                    <span>✕</span>
-                    <span class="text-[11px]">不可</span>
-                  </button>
+                        const status = answers.value[slot.id] || 'available'
+
+                        let cellClass = 'bg-sky-400 text-white font-bold hover:bg-sky-500'
+                        let symbol = '•'
+                        let title = `${hour}:00 ◯（参加可能）`
+
+                        if (status === 'favorite') {
+                          cellClass = 'bg-blue-600 text-white font-bold hover:bg-blue-700'
+                          symbol = '◎'
+                          title = `${hour}:00 ◎（希望）`
+                        } else if (status === 'maybe') {
+                          cellClass = 'bg-amber-400 text-white font-bold hover:bg-amber-500'
+                          symbol = '▲'
+                          title = `${hour}:00 △（未定）`
+                        } else if (status === 'unavailable') {
+                          cellClass =
+                            'bg-stone-300 text-stone-600 font-bold hover:bg-stone-400 hover:text-white'
+                          symbol = '×'
+                          title = `${hour}:00 ✕（不可）`
+                        }
+
+                        return (
+                          <button
+                            key={hour}
+                            type="button"
+                            onClick={() => handleCellClick(slot.id)}
+                            class={`w-[28px] sm:w-[32px] h-full flex items-center justify-center text-xs select-none border-r border-white/40 transition cursor-pointer active:scale-95 ${cellClass}`}
+                            title={title}
+                          >
+                            <span>{symbol}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
                 </div>
               </div>
             )
@@ -320,18 +428,19 @@ export const AnswerForm = defineVaporComponent((props: { event: EventDetail; onS
             type="button"
             disabled={isSubmitting.value}
             onClick={handleSubmit}
-            class="w-full py-3.5 bg-rose-500 hover:bg-rose-600 active:bg-rose-700 disabled:opacity-50 text-white font-extrabold text-base rounded-2xl shadow-md shadow-rose-200 transition-all flex items-center justify-center gap-2"
+            class="w-full py-4 bg-rose-500 hover:bg-rose-600 active:bg-rose-700 disabled:opacity-50 text-white font-extrabold text-base md:text-lg rounded-2xl shadow-lg shadow-rose-200 transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
             {isSubmitting.value ? (
               <span>送信中...</span>
             ) : (
               <>
                 <span>💌</span>
-                <span>{participantId.value ? '回答を更新する' : '回答を登録する'}</span>
+                <span>{participantId.value ? '回答を更新する' : '予定を登録する'}</span>
               </>
             )}
           </button>
         </div>
       </div>
     )
+  },
 })

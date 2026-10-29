@@ -1,4 +1,27 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 export type AnswerStatus = 'favorite' | 'available' | 'maybe' | 'unavailable'
+
+export interface User {
+  id: string
+  githubId: number
+  username: string
+  displayName?: string | null
+  avatarUrl?: string | null
+  profileUrl?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreatorProfile {
+  id: string
+  username: string
+  displayName?: string | null
+  avatarUrl?: string | null
+  profileUrl?: string | null
+}
 
 export interface TimeSlot {
   id: string
@@ -33,6 +56,9 @@ export interface EventDetail {
   title: string
   description?: string | null
   organizerName: string
+  creatorUserId?: string | null
+  creator?: CreatorProfile | null
+  isOrganizer?: boolean
   confirmedSlotId?: string | null
   createdAt: string
   updatedAt: string
@@ -44,6 +70,7 @@ export interface CreateEventInput {
   title: string
   description?: string
   organizerName: string
+  creatorUserId?: string
   slots: {
     slotDate: string
     startTime: string
@@ -63,7 +90,7 @@ export interface SubmitResponseInput {
 }
 
 export interface ConfirmSlotInput {
-  adminToken: string
+  adminToken?: string
   slotId: string | null // null で解除
 }
 

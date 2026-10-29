@@ -1,18 +1,22 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 import { Hono } from 'hono'
 import { getEventById } from '../db/client'
+import type { AuthBindings, AuthVariables } from '../middleware/auth'
 
-type Bindings = {
-  DB: D1Database
-}
-
-export const pages = new Hono<{ Bindings: Bindings }>()
+export const pages = new Hono<{
+  Bindings: AuthBindings
+  Variables: AuthVariables
+}>()
 
 // トップページ
 pages.get('/', (c) => {
   return c.render(
     <div class="flex flex-col items-center text-center space-y-8 py-6 md:py-12">
       <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-rose-100 text-rose-700 text-sm font-semibold animate-pulse">
-        <span>🐷</span> さようならトントン、こんにちは noton2
+        <span>🐷</span> 登録不要ですぐ使える日程調整
       </div>
 
       <div class="space-y-4 max-w-2xl">
@@ -24,9 +28,9 @@ pages.get('/', (c) => {
           </span>
         </h1>
         <p class="text-stone-600 text-base md:text-lg leading-relaxed">
-          面倒な会員登録やログインは一切不要。
+          回答者は面倒な会員登録やログインは一切不要。
           <br class="hidden sm:inline" />
-          カレンダーから時間枠を選んでURLをシェアするだけで、複数人の空き時間がひと目でわかります。
+          主催者のGitHub身元確認付きで安心。カレンダーから時間枠を選ぶだけで直感的に日程を調整できます。
         </p>
       </div>
 
@@ -36,7 +40,7 @@ pages.get('/', (c) => {
           class="w-full sm:w-auto px-8 py-3.5 bg-rose-500 hover:bg-rose-600 active:bg-rose-700 text-white font-extrabold text-base md:text-lg rounded-2xl shadow-lg shadow-rose-200 hover:shadow-rose-300 transition-all transform hover:-translate-y-0.5 text-center flex items-center justify-center gap-2"
         >
           <span>✨</span>
-          <span>日程調整表を作る（無料・登録不要）</span>
+          <span>日程調整表を作る</span>
         </a>
       </div>
 
@@ -59,22 +63,22 @@ pages.get('/', (c) => {
             🎯
           </div>
           <h2 class="text-base font-bold text-stone-800 mb-2 font-['M_PLUS_Rounded_1c']">
-            トントン伝統の 4段階回答
+            直感的な 4段階回答
           </h2>
           <p class="text-sm text-stone-600 leading-relaxed">
-            ◎（希望）、◯（参加可能）、△（未定）、✕（不可）の4段階。一括選択機能で参加者の回答もストレスフリー。
+            ◎（希望）、◯（参加可能）、△（未定）、✕（不可）の4段階。参加者は登録不要で、一括選択もストレスフリー。
           </p>
         </div>
 
         <div class="bg-white p-6 rounded-2xl border border-rose-100 shadow-sm hover:shadow-md transition-shadow">
           <div class="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center text-2xl mb-4">
-            👑
+            🛡️
           </div>
           <h2 class="text-base font-bold text-stone-800 mb-2 font-['M_PLUS_Rounded_1c']">
-            ベストな日程を自動判定
+            GitHub連携で安心・安全
           </h2>
           <p class="text-sm text-stone-600 leading-relaxed">
-            全員の回答を集計マトリクス表で可視化。スコア順にソートされ、全員が参加できる最適日時がひと目で決まります。
+            イベント作成者はGitHubログインで身元が明示されるため、参加者も安心。主催者はログインするだけで管理可能です。
           </p>
         </div>
       </div>
@@ -87,9 +91,10 @@ pages.get('/', (c) => {
 
 // イベント作成ページ
 pages.get('/new', (c) => {
+  const user = c.get('user')
   return c.render(
     <div>
-      <div id="event-creator-island"></div>
+      <div id="event-creator-island" data-user={JSON.stringify(user || null)}></div>
     </div>,
     {
       title: '日程調整を作成する',
@@ -102,7 +107,8 @@ pages.get('/new', (c) => {
 pages.get('/events/:id', async (c) => {
   const eventId = c.req.param('id')
   const adminToken = c.req.query('admin')
-  const event = await getEventById(c.env.DB, eventId, adminToken)
+  const currentUser = c.get('user')
+  const event = await getEventById(c.env.DB, eventId, adminToken, currentUser?.id)
 
   if (!event) {
     return c.render(
@@ -130,7 +136,8 @@ pages.get('/events/:id', async (c) => {
     .slice(0, 3)
     .map((s) => `${s.slotDate.slice(5)} ${s.startTime}〜${s.endTime}`)
     .join(', ')
-  const ogpDesc = `${event.organizerName}さんが作成した日程調整「${event.title}」。候補日時: ${slotSummary}${
+  const organizerDisplay = event.creator ? `@${event.creator.username}` : event.organizerName
+  const ogpDesc = `${organizerDisplay}さんが作成した日程調整「${event.title}」。候補日時: ${slotSummary}${
     event.slots.length > 3 ? ' ほか' : ''
   }`
 

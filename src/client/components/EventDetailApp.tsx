@@ -1,21 +1,41 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 import { defineVaporComponent, ref, computed } from 'vue'
 import { AnswerForm } from './AnswerForm'
 import { MatrixTable } from './MatrixTable'
 import { AdminControls } from './AdminControls'
 import type { EventDetail } from '@/shared/types'
 
-export const EventDetailApp = defineVaporComponent((props: { initialEvent: EventDetail }) => {
-  const event = ref<EventDetail>(props.initialEvent)
+export const EventDetailApp = defineVaporComponent({
+  props: {
+    initialEvent: {
+      type: Object as () => EventDetail,
+      required: true,
+    },
+  },
+  setup(props) {
+    const event = ref<EventDetail>(props.initialEvent)
     const isReloading = ref(false)
     const isCopied = ref(false)
 
     // URLクエリから adminToken を抽出
-    const getAdminToken = () => {
+    const getUrlAdminToken = () => {
       if (typeof window === 'undefined') return ''
       const params = new URLSearchParams(window.location.search)
       return params.get('admin') || ''
     }
-    const adminToken = ref(getAdminToken())
+    const urlAdminToken = ref(getUrlAdminToken())
+
+    // 主催者権限（adminToken一致 または GitHubログインユーザー一致）
+    const isOrganizer = computed(
+      () => Boolean(event.value.isOrganizer || event.value.adminToken || urlAdminToken.value)
+    )
+
+    const effectiveAdminToken = computed(
+      () => event.value.adminToken || urlAdminToken.value || ''
+    )
 
     // 日付フォーマット
     const formatDateLabel = (dateStr: string) => {
@@ -30,7 +50,9 @@ export const EventDetailApp = defineVaporComponent((props: { initialEvent: Event
     const reloadEvent = async () => {
       isReloading.value = true
       try {
-        const query = adminToken.value ? `?admin=${encodeURIComponent(adminToken.value)}` : ''
+        const query = effectiveAdminToken.value
+          ? `?admin=${encodeURIComponent(effectiveAdminToken.value)}`
+          : ''
         const res = await fetch(`/api/events/${event.value.id}${query}`)
         if (res.ok) {
           const updated = await res.json()
@@ -68,9 +90,9 @@ export const EventDetailApp = defineVaporComponent((props: { initialEvent: Event
                 <span class="text-xs bg-rose-100 text-rose-700 font-bold px-2.5 py-0.5 rounded-full">
                   日程調整中
                 </span>
-                {adminToken.value ? (
-                  <span class="text-xs bg-amber-100 text-amber-800 font-bold px-2.5 py-0.5 rounded-full">
-                    👑 主催者モード
+                {isOrganizer.value ? (
+                  <span class="text-xs bg-amber-100 text-amber-800 font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                    <span>👑</span> 主催者モード
                   </span>
                 ) : null}
                 {confirmedSlot.value ? (
@@ -84,8 +106,41 @@ export const EventDetailApp = defineVaporComponent((props: { initialEvent: Event
                 {event.value.title}
               </h1>
 
-              <div class="flex items-center gap-4 text-xs text-stone-500 font-medium">
-                <span>主催者: <strong class="text-stone-700">{event.value.organizerName}</strong> さん</span>
+              <div class="flex items-center gap-4 text-xs text-stone-500 font-medium flex-wrap">
+                <div class="flex items-center gap-1.5">
+                  <span>主催者:</span>
+                  {event.value.creator ? (
+                    <a
+                      href={
+                        event.value.creator.profileUrl ||
+                        `https://github.com/${event.value.creator.username}`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="inline-flex items-center gap-1.5 text-stone-800 hover:text-rose-600 font-bold bg-stone-100 hover:bg-rose-50 px-2.5 py-1 rounded-full border border-stone-200 transition group"
+                      title="GitHubプロフィールを確認"
+                    >
+                      {event.value.creator.avatarUrl ? (
+                        <img
+                          src={event.value.creator.avatarUrl}
+                          alt={event.value.creator.username}
+                          class="w-4 h-4 rounded-full"
+                        />
+                      ) : null}
+                      <span>@{event.value.creator.username}</span>
+                      <svg class="w-3 h-3 fill-current opacity-60" viewBox="0 0 24 24">
+                        <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+                      </svg>
+                    </a>
+                  ) : (
+                    <strong class="text-stone-700">{event.value.organizerName}</strong>
+                  )}
+                  {event.value.creator &&
+                  event.value.organizerName &&
+                  event.value.organizerName !== event.value.creator.username ? (
+                    <span class="text-stone-400">（{event.value.organizerName}）</span>
+                  ) : null}
+                </div>
                 <span>候補枠数: {event.value.slots.length}枠</span>
               </div>
             </div>
@@ -115,17 +170,18 @@ export const EventDetailApp = defineVaporComponent((props: { initialEvent: Event
                 <span>🎉</span> 開催日時が決定しました！
               </div>
               <div class="text-lg md:text-xl font-extrabold font-['M_PLUS_Rounded_1c']">
-                {formatDateLabel(confirmedSlot.value.slotDate)} {confirmedSlot.value.startTime}〜{confirmedSlot.value.endTime}
+                {formatDateLabel(confirmedSlot.value.slotDate)} {confirmedSlot.value.startTime}〜
+                {confirmedSlot.value.endTime}
               </div>
             </div>
           ) : null}
         </div>
 
-        {/* 主催者管理バー (adminTokenがある場合のみ) */}
-        {adminToken.value ? (
+        {/* 主催者管理バー (主催者権限がある場合のみ) */}
+        {isOrganizer.value ? (
           <AdminControls
             event={event.value}
-            adminToken={adminToken.value}
+            adminToken={effectiveAdminToken.value}
             onReload={reloadEvent}
           />
         ) : null}
@@ -133,15 +189,13 @@ export const EventDetailApp = defineVaporComponent((props: { initialEvent: Event
         {/* 出欠集計表 (マトリクス) */}
         <MatrixTable
           event={event.value}
-          adminToken={adminToken.value}
+          adminToken={effectiveAdminToken.value}
           onReload={reloadEvent}
         />
 
-        {/* 回答入力フォーム */}
-        <AnswerForm
-          event={event.value}
-          onSuccess={reloadEvent}
-        />
+        {/* 回答入力フォーム（誰でも登録不要で回答可能） */}
+        <AnswerForm event={event.value} onSuccess={reloadEvent} />
       </div>
     )
+  },
 })

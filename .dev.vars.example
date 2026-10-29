@@ -1,0 +1,10 @@
+# GitHub OAuth App credentials
+# Register a new OAuth App at: https://github.com/settings/applications/new
+# - Application name: noton2 (Local Dev)
+# - Homepage URL: http://localhost:5173
+# - Authorization callback URL: http://localhost:5173/auth/github/callback
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+
+# Secret key used to sign session cookies (at least 32 characters recommended)
+SESSION_SECRET=local-development-session-secret-change-me-in-production

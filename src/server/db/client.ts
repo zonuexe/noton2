@@ -1,9 +1,15 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 import type {
   CreateEventInput,
+  CreatorProfile,
   EventDetail,
   Participant,
   SubmitResponseInput,
   TimeSlot,
+  User,
 } from '@/shared/types'
 
 // URL用の短縮ランダムID生成 (8文字)
@@ -23,9 +29,82 @@ export function generateToken(): string {
   return crypto.randomUUID()
 }
 
+// ユーザーの upsert (GitHub OAuth 連携)
+export async function upsertUser(
+  db: D1Database,
+  userData: {
+    githubId: number
+    username: string
+    displayName?: string | null
+    avatarUrl?: string | null
+    profileUrl?: string | null
+  }
+): Promise<User> {
+  const userId = `gh_${userData.githubId}`
+  await db
+    .prepare(
+      `INSERT INTO users (id, github_id, username, display_name, avatar_url, profile_url, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+       ON CONFLICT(github_id) DO UPDATE SET
+         username = excluded.username,
+         display_name = excluded.display_name,
+         avatar_url = excluded.avatar_url,
+         profile_url = excluded.profile_url,
+         updated_at = datetime('now')`
+    )
+    .bind(
+      userId,
+      userData.githubId,
+      userData.username,
+      userData.displayName || null,
+      userData.avatarUrl || null,
+      userData.profileUrl || null
+    )
+    .run()
+
+  const user = await getUserById(db, userId)
+  if (!user) {
+    throw new Error('ユーザー情報の保存に失敗しました')
+  }
+  return user
+}
+
+export async function getUserById(db: D1Database, userId: string): Promise<User | null> {
+  const row = await db
+    .prepare(
+      `SELECT id, github_id, username, display_name, avatar_url, profile_url, created_at, updated_at
+       FROM users WHERE id = ?`
+    )
+    .bind(userId)
+    .first<{
+      id: string
+      github_id: number
+      username: string
+      display_name: string | null
+      avatar_url: string | null
+      profile_url: string | null
+      created_at: string
+      updated_at: string
+    }>()
+
+  if (!row) return null
+
+  return {
+    id: row.id,
+    githubId: row.github_id,
+    username: row.username,
+    displayName: row.display_name,
+    avatarUrl: row.avatar_url,
+    profileUrl: row.profile_url,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
 export async function createEvent(
   db: D1Database,
-  input: CreateEventInput
+  input: CreateEventInput,
+  creatorUserId?: string | null
 ): Promise<{ id: string; adminToken: string }> {
   const eventId = generateShortId(8)
   const adminToken = generateToken()
@@ -33,15 +112,16 @@ export async function createEvent(
   // 1. events テーブルに挿入
   await db
     .prepare(
-      `INSERT INTO events (id, admin_token, title, description, organizer_name)
-       VALUES (?, ?, ?, ?, ?)`
+      `INSERT INTO events (id, admin_token, title, description, organizer_name, creator_user_id)
+       VALUES (?, ?, ?, ?, ?, ?)`
     )
     .bind(
       eventId,
       adminToken,
       input.title.trim(),
       input.description?.trim() || null,
-      input.organizerName.trim()
+      input.organizerName.trim(),
+      creatorUserId || null
     )
     .run()
 
@@ -65,12 +145,29 @@ export async function createEvent(
 export async function getEventById(
   db: D1Database,
   eventId: string,
-  adminToken?: string
+  adminToken?: string,
+  currentUserId?: string | null
 ): Promise<EventDetail | null> {
   const eventRow = await db
     .prepare(
-      `SELECT id, admin_token, title, description, organizer_name, confirmed_slot_id, created_at, updated_at
-       FROM events WHERE id = ?`
+      `SELECT
+         e.id,
+         e.admin_token,
+         e.title,
+         e.description,
+         e.organizer_name,
+         e.creator_user_id,
+         e.confirmed_slot_id,
+         e.created_at,
+         e.updated_at,
+         u.id as u_id,
+         u.username as u_username,
+         u.display_name as u_display_name,
+         u.avatar_url as u_avatar_url,
+         u.profile_url as u_profile_url
+       FROM events e
+       LEFT JOIN users u ON e.creator_user_id = u.id
+       WHERE e.id = ?`
     )
     .bind(eventId)
     .first<{
@@ -79,14 +176,27 @@ export async function getEventById(
       title: string
       description: string | null
       organizer_name: string
+      creator_user_id: string | null
       confirmed_slot_id: string | null
       created_at: string
       updated_at: string
+      u_id: string | null
+      u_username: string | null
+      u_display_name: string | null
+      u_avatar_url: string | null
+      u_profile_url: string | null
     }>()
 
   if (!eventRow) {
     return null
   }
+
+  // 主催者・管理者判定
+  const isTokenAdmin = Boolean(adminToken && adminToken === eventRow.admin_token)
+  const isUserAdmin = Boolean(
+    currentUserId && eventRow.creator_user_id && currentUserId === eventRow.creator_user_id
+  )
+  const isOrganizer = isTokenAdmin || isUserAdmin
 
   // スロット取得 (日付、開始時刻、ソート順で並び替え)
   const slotRows = await db
@@ -165,16 +275,29 @@ export async function getEventById(
     createdAt: p.created_at,
     updatedAt: p.updated_at,
     answers: answersByParticipant[p.id] || {},
-    // 管理者トークンが一致していれば edit_token も返す
-    editToken: adminToken === eventRow.admin_token ? p.edit_token : undefined,
+    // 主催者であれば参加者の edit_token も参照可能
+    editToken: isOrganizer ? p.edit_token : undefined,
   }))
+
+  const creator: CreatorProfile | null = eventRow.u_id
+    ? {
+        id: eventRow.u_id,
+        username: eventRow.u_username || '',
+        displayName: eventRow.u_display_name,
+        avatarUrl: eventRow.u_avatar_url,
+        profileUrl: eventRow.u_profile_url,
+      }
+    : null
 
   return {
     id: eventRow.id,
-    adminToken: adminToken === eventRow.admin_token ? eventRow.admin_token : undefined,
+    adminToken: isOrganizer ? eventRow.admin_token : undefined,
     title: eventRow.title,
     description: eventRow.description,
     organizerName: eventRow.organizer_name,
+    creatorUserId: eventRow.creator_user_id,
+    creator,
+    isOrganizer,
     confirmedSlotId: eventRow.confirmed_slot_id,
     createdAt: eventRow.created_at,
     updatedAt: eventRow.updated_at,
@@ -247,15 +370,25 @@ export async function submitResponse(
 export async function confirmSlot(
   db: D1Database,
   eventId: string,
-  adminToken: string,
-  slotId: string | null
+  adminToken?: string,
+  slotId?: string | null,
+  currentUserId?: string | null
 ): Promise<boolean> {
   const event = await db
-    .prepare(`SELECT id FROM events WHERE id = ? AND admin_token = ?`)
-    .bind(eventId, adminToken)
-    .first()
+    .prepare(`SELECT id, admin_token, creator_user_id FROM events WHERE id = ?`)
+    .bind(eventId)
+    .first<{ id: string; admin_token: string; creator_user_id: string | null }>()
 
   if (!event) {
+    return false
+  }
+
+  const isTokenAdmin = Boolean(adminToken && adminToken === event.admin_token)
+  const isUserAdmin = Boolean(
+    currentUserId && event.creator_user_id && currentUserId === event.creator_user_id
+  )
+
+  if (!isTokenAdmin && !isUserAdmin) {
     return false
   }
 
@@ -265,7 +398,7 @@ export async function confirmSlot(
        SET confirmed_slot_id = ?, updated_at = datetime('now')
        WHERE id = ?`
     )
-    .bind(slotId, eventId)
+    .bind(slotId ?? null, eventId)
     .run()
 
   return true
@@ -274,12 +407,28 @@ export async function confirmSlot(
 export async function deleteEvent(
   db: D1Database,
   eventId: string,
-  adminToken: string
+  adminToken?: string,
+  currentUserId?: string | null
 ): Promise<boolean> {
-  const result = await db
-    .prepare(`DELETE FROM events WHERE id = ? AND admin_token = ?`)
-    .bind(eventId, adminToken)
-    .run()
+  const event = await db
+    .prepare(`SELECT id, admin_token, creator_user_id FROM events WHERE id = ?`)
+    .bind(eventId)
+    .first<{ id: string; admin_token: string; creator_user_id: string | null }>()
+
+  if (!event) {
+    return false
+  }
+
+  const isTokenAdmin = Boolean(adminToken && adminToken === event.admin_token)
+  const isUserAdmin = Boolean(
+    currentUserId && event.creator_user_id && currentUserId === event.creator_user_id
+  )
+
+  if (!isTokenAdmin && !isUserAdmin) {
+    return false
+  }
+
+  const result = await db.prepare(`DELETE FROM events WHERE id = ?`).bind(eventId).run()
 
   return result.meta.changes > 0
 }
@@ -288,24 +437,29 @@ export async function deleteParticipant(
   db: D1Database,
   eventId: string,
   participantId: string,
-  token: string
+  token?: string,
+  currentUserId?: string | null
 ): Promise<boolean> {
-  // adminToken または editToken のいずれかで削除可能
   const event = await db
-    .prepare(`SELECT admin_token FROM events WHERE id = ?`)
+    .prepare(`SELECT admin_token, creator_user_id FROM events WHERE id = ?`)
     .bind(eventId)
-    .first<{ admin_token: string }>()
+    .first<{ admin_token: string; creator_user_id: string | null }>()
 
-  const isAdmin = event && event.admin_token === token
+  const isTokenAdmin = Boolean(token && event && event.admin_token === token)
+  const isUserAdmin = Boolean(
+    currentUserId && event?.creator_user_id && currentUserId === event.creator_user_id
+  )
+  const isAdmin = isTokenAdmin || isUserAdmin
 
   let query: string
   if (isAdmin) {
     query = `DELETE FROM participants WHERE id = ? AND event_id = ?`
     const res = await db.prepare(query).bind(participantId, eventId).run()
     return res.meta.changes > 0
-  } else {
+  } else if (token) {
     query = `DELETE FROM participants WHERE id = ? AND event_id = ? AND edit_token = ?`
     const res = await db.prepare(query).bind(participantId, eventId, token).run()
     return res.meta.changes > 0
   }
+  return false
 }
