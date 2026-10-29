@@ -13,13 +13,20 @@ import type {
 } from '@/shared/types'
 
 // URL用の短縮ランダムID生成 (8文字)
+// 紛らわしい文字(0, o, 1, l, i)を除いた31文字。リジェクションサンプリングによりモジュロバイアスを完全排除
 export function generateShortId(length = 8): string {
   const chars = 'abcdefghjkmnpqrstuvwxyz23456789'
-  const randomBytes = new Uint8Array(length)
-  crypto.getRandomValues(randomBytes)
+  const maxByte = 256 - (256 % chars.length)
   let result = ''
-  for (let i = 0; i < length; i++) {
-    result += chars[randomBytes[i] % chars.length]
+  while (result.length < length) {
+    const randomBytes = new Uint8Array(length - result.length + 4)
+    crypto.getRandomValues(randomBytes)
+    for (let i = 0; i < randomBytes.length; i++) {
+      if (randomBytes[i] < maxByte) {
+        result += chars[randomBytes[i] % chars.length]
+        if (result.length === length) break
+      }
+    }
   }
   return result
 }
@@ -410,6 +417,16 @@ export async function deleteSlotFromEvent(
     throw new Error('スロット削除の権限がありません')
   }
 
+  // 確定スロットが削除対象の場合、確定状態を解除
+  await db
+    .prepare(
+      `UPDATE events
+       SET confirmed_slot_id = NULL, updated_at = datetime('now')
+       WHERE id = ? AND confirmed_slot_id = ?`
+    )
+    .bind(eventId, slotId)
+    .run()
+
   const res = await db
     .prepare(`DELETE FROM time_slots WHERE id = ? AND event_id = ?`)
     .bind(slotId, eventId)
@@ -437,6 +454,18 @@ export async function deleteSlotsByDate(
   if (!isAuthorized) {
     throw new Error('スロット削除の権限がありません')
   }
+
+  // 確定スロットが該当日のスロットに含まれていた場合、確定状態を解除
+  await db
+    .prepare(
+      `UPDATE events
+       SET confirmed_slot_id = NULL, updated_at = datetime('now')
+       WHERE id = ? AND confirmed_slot_id IN (
+         SELECT id FROM time_slots WHERE slot_date = ? AND event_id = ?
+       )`
+    )
+    .bind(eventId, slotDate, eventId)
+    .run()
 
   const res = await db
     .prepare(`DELETE FROM time_slots WHERE slot_date = ? AND event_id = ?`)
@@ -515,8 +544,16 @@ export async function submitResponse(
     throw new Error('指定されたイベントが見つかりません')
   }
 
+  // 当該イベントに属する有効なスロット一覧を取得
+  const validSlotRows = await db
+    .prepare(`SELECT id FROM time_slots WHERE event_id = ?`)
+    .bind(eventId)
+    .all<{ id: string }>()
+  const validSlotIds = new Set((validSlotRows.results || []).map((s) => s.id))
+
   let participantId = input.participantId
   let editToken = input.editToken
+  const statements: D1PreparedStatement[] = []
 
   if (participantId && editToken) {
     // 既存回答の更新: 認証確認
@@ -529,44 +566,60 @@ export async function submitResponse(
       throw new Error('編集権限がありません')
     }
 
-    await db
-      .prepare(
-        `UPDATE participants
-         SET name = ?, comment = ?, updated_at = datetime('now')
-         WHERE id = ?`
-      )
-      .bind(input.name.trim(), input.comment?.trim() || null, participantId)
-      .run()
+    statements.push(
+      db
+        .prepare(
+          `UPDATE participants
+           SET name = ?, comment = ?, updated_at = datetime('now')
+           WHERE id = ?`
+        )
+        .bind(input.name.trim(), input.comment?.trim() || null, participantId)
+    )
 
     // 既存回答削除
-    await db.prepare(`DELETE FROM slot_answers WHERE participant_id = ?`).bind(participantId).run()
+    statements.push(
+      db.prepare(`DELETE FROM slot_answers WHERE participant_id = ?`).bind(participantId)
+    )
   } else {
+    // 参加者上限チェック (1イベントあたり最大300名)
+    const countRow = await db
+      .prepare(`SELECT COUNT(*) as count FROM participants WHERE event_id = ?`)
+      .bind(eventId)
+      .first<{ count: number }>()
+
+    if (countRow && countRow.count >= 300) {
+      throw new Error('このイベントの回答者数が上限（300名）に達しています')
+    }
+
     // 新規参加者作成
     participantId = generateShortId(10)
     editToken = generateToken()
 
-    await db
-      .prepare(
-        `INSERT INTO participants (id, event_id, name, comment, edit_token)
-         VALUES (?, ?, ?, ?, ?)`
-      )
-      .bind(participantId, eventId, input.name.trim(), input.comment?.trim() || null, editToken)
-      .run()
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO participants (id, event_id, name, comment, edit_token)
+           VALUES (?, ?, ?, ?, ?)`
+        )
+        .bind(participantId, eventId, input.name.trim(), input.comment?.trim() || null, editToken)
+    )
   }
 
-  // 各独立スロットへの回答を登録 (重複 slotId は最後のステータスに集約)
+  // 有効なステータス定義
+  const validStatuses = new Set(['favorite', 'available', 'maybe', 'unavailable'])
+
+  // 各独立スロットへの回答を登録 (重複 slotId は最後のステータスに集約し、イベントに実在するスロットのみ対象)
   if (input.answers && input.answers.length > 0) {
     const uniqueAnswers = new Map<string, string>()
     for (const ans of input.answers) {
-      if (ans.slotId && ans.status) {
+      if (ans.slotId && validSlotIds.has(ans.slotId) && validStatuses.has(ans.status)) {
         uniqueAnswers.set(ans.slotId, ans.status)
       }
     }
 
-    const answerStatements: D1PreparedStatement[] = []
     for (const [slotId, status] of uniqueAnswers.entries()) {
       const answerId = generateShortId(12)
-      answerStatements.push(
+      statements.push(
         db
           .prepare(
             `INSERT INTO slot_answers (id, participant_id, slot_id, status)
@@ -575,10 +628,11 @@ export async function submitResponse(
           .bind(answerId, participantId, slotId, status)
       )
     }
+  }
 
-    if (answerStatements.length > 0) {
-      await db.batch(answerStatements)
-    }
+  // UPDATE/INSERT/DELETE を同一トランザクションでアトミックに実行（失敗時のデータ全損を防止）
+  if (statements.length > 0) {
+    await db.batch(statements)
   }
 
   return { participantId, editToken }
@@ -594,6 +648,18 @@ export async function confirmSlot(
   const { isAuthorized } = await verifyOrganizerPermission(db, eventId, adminToken, currentUserId)
   if (!isAuthorized) {
     return false
+  }
+
+  // 指定された slotId がそのイベントに実在するかチェック (null の場合は確定解除なのでOK)
+  if (slotId) {
+    const slotExists = await db
+      .prepare(`SELECT id FROM time_slots WHERE id = ? AND event_id = ?`)
+      .bind(slotId, eventId)
+      .first()
+
+    if (!slotExists) {
+      throw new Error('指定されたスロットが存在しません')
+    }
   }
 
   await db

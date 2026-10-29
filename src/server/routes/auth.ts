@@ -120,95 +120,100 @@ auth.get('/github', (c) => {
 
 // 2. GitHub コールバック
 auth.get('/github/callback', async (c) => {
-  const code = c.req.query('code')
-  const state = c.req.query('state')
-  const savedState = getCookie(c, OAUTH_STATE_COOKIE)
-  const returnTo = sanitizeReturnTo(getCookie(c, RETURN_TO_COOKIE))
+  try {
+    const code = c.req.query('code')
+    const state = c.req.query('state')
+    const savedState = getCookie(c, OAUTH_STATE_COOKIE)
+    const returnTo = sanitizeReturnTo(getCookie(c, RETURN_TO_COOKIE))
 
-  // 状態検証
-  if (!code || !state || state !== savedState) {
-    return c.text('OAuth state mismatch or missing authorization code.', 400)
+    // 状態検証
+    if (!code || !state || state !== savedState) {
+      return c.text('OAuth state mismatch or missing authorization code.', 400)
+    }
+
+    deleteCookie(c, OAUTH_STATE_COOKIE, { path: '/' })
+    deleteCookie(c, RETURN_TO_COOKIE, { path: '/' })
+
+    const clientId = c.env.GITHUB_CLIENT_ID
+    const clientSecret = c.env.GITHUB_CLIENT_SECRET
+    if (!clientId || !clientSecret) {
+      return c.text('GitHub OAuth credentials are not properly configured.', 500)
+    }
+
+    const origin = new URL(c.req.url).origin
+    const redirectUri = `${origin}/auth/github/callback`
+
+    // 2-1. トークン交換
+    const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'User-Agent': 'noton2-app',
+      },
+      body: JSON.stringify({
+        client_id: clientId,
+        client_secret: clientSecret,
+        code,
+        redirect_uri: redirectUri,
+      }),
+    })
+
+    if (!tokenRes.ok) {
+      return c.text('Failed to exchange GitHub authorization code.', 500)
+    }
+
+    const tokenData = (await tokenRes.json()) as { access_token?: string; error?: string }
+    if (!tokenData.access_token) {
+      return c.text(`GitHub token error: ${tokenData.error || 'Unknown error'}`, 400)
+    }
+
+    // 2-2. ユーザー情報取得
+    const userRes = await fetch('https://api.github.com/user', {
+      headers: {
+        Authorization: `Bearer ${tokenData.access_token}`,
+        Accept: 'application/vnd.github.v3+json',
+        'User-Agent': 'noton2-app',
+      },
+    })
+
+    if (!userRes.ok) {
+      return c.text('Failed to fetch user profile from GitHub API.', 500)
+    }
+
+    const ghUser = (await userRes.json()) as {
+      id: number
+      login: string
+      name: string | null
+      avatar_url: string
+      html_url: string
+    }
+
+    // 2-3. D1 にユーザーを保存
+    const user = await upsertUser(c.env.DB, {
+      githubId: ghUser.id,
+      username: ghUser.login,
+      displayName: ghUser.name || ghUser.login,
+      avatarUrl: ghUser.avatar_url,
+      profileUrl: ghUser.html_url,
+    })
+
+    // 2-4. セッション Cookie 発行
+    const secret = getSessionSecret(c.env)
+    const isHttps = c.req.url.startsWith('https')
+    await setSignedCookie(c, SESSION_COOKIE_NAME, user.id, secret, {
+      httpOnly: true,
+      secure: isHttps,
+      sameSite: 'Lax',
+      path: '/',
+      maxAge: 30 * 24 * 60 * 60, // 30日
+    })
+
+    return c.redirect(returnTo)
+  } catch (err: any) {
+    console.error('OAuth callback error:', err)
+    return c.text(`GitHub認証処理中にエラーが発生しました: ${err.message || 'Unknown error'}`, 500)
   }
-
-  deleteCookie(c, OAUTH_STATE_COOKIE, { path: '/' })
-  deleteCookie(c, RETURN_TO_COOKIE, { path: '/' })
-
-  const clientId = c.env.GITHUB_CLIENT_ID
-  const clientSecret = c.env.GITHUB_CLIENT_SECRET
-  if (!clientId || !clientSecret) {
-    return c.text('GitHub OAuth credentials are not properly configured.', 500)
-  }
-
-  const origin = new URL(c.req.url).origin
-  const redirectUri = `${origin}/auth/github/callback`
-
-  // 2-1. トークン交換
-  const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-      'User-Agent': 'noton2-app',
-    },
-    body: JSON.stringify({
-      client_id: clientId,
-      client_secret: clientSecret,
-      code,
-      redirect_uri: redirectUri,
-    }),
-  })
-
-  if (!tokenRes.ok) {
-    return c.text('Failed to exchange GitHub authorization code.', 500)
-  }
-
-  const tokenData = (await tokenRes.json()) as { access_token?: string; error?: string }
-  if (!tokenData.access_token) {
-    return c.text(`GitHub token error: ${tokenData.error || 'Unknown error'}`, 400)
-  }
-
-  // 2-2. ユーザー情報取得
-  const userRes = await fetch('https://api.github.com/user', {
-    headers: {
-      Authorization: `Bearer ${tokenData.access_token}`,
-      Accept: 'application/vnd.github.v3+json',
-      'User-Agent': 'noton2-app',
-    },
-  })
-
-  if (!userRes.ok) {
-    return c.text('Failed to fetch user profile from GitHub API.', 500)
-  }
-
-  const ghUser = (await userRes.json()) as {
-    id: number
-    login: string
-    name: string | null
-    avatar_url: string
-    html_url: string
-  }
-
-  // 2-3. D1 にユーザーを保存
-  const user = await upsertUser(c.env.DB, {
-    githubId: ghUser.id,
-    username: ghUser.login,
-    displayName: ghUser.name || ghUser.login,
-    avatarUrl: ghUser.avatar_url,
-    profileUrl: ghUser.html_url,
-  })
-
-  // 2-4. セッション Cookie 発行
-  const secret = getSessionSecret(c.env)
-  const isHttps = c.req.url.startsWith('https')
-  await setSignedCookie(c, SESSION_COOKIE_NAME, user.id, secret, {
-    httpOnly: true,
-    secure: isHttps,
-    sameSite: 'Lax',
-    path: '/',
-    maxAge: 30 * 24 * 60 * 60, // 30日
-  })
-
-  return c.redirect(returnTo)
 })
 
 // 3. 開発用モックログイン (ローカル開発限定)

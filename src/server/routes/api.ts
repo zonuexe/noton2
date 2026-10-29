@@ -16,6 +16,7 @@ import {
   updateEventDetails,
 } from '../db/client'
 import type { CreateEventInput, SubmitResponseInput } from '@/shared/types'
+import { isValidSlotDate, isValidTimeHM } from '@/shared/time'
 import type { AuthBindings, AuthVariables } from '../middleware/auth'
 
 export const api = new Hono<{
@@ -61,6 +62,15 @@ api.post('/events', async (c) => {
       return c.json({ error: '候補日時は最大500件まで指定できます' }, 400)
     }
 
+    for (const s of body.slots) {
+      if (!isValidSlotDate(s.slotDate)) {
+        return c.json({ error: '候補日時の日付形式が正しくありません (YYYY-MM-DD)' }, 400)
+      }
+      if (!isValidTimeHM(s.startTime) || !isValidTimeHM(s.endTime)) {
+        return c.json({ error: '候補日時の時刻形式が正しくありません (HH:mm)' }, 400)
+      }
+    }
+
     const { id, adminToken } = await createEvent(c.env.DB, body, user.id)
     return c.json({ id, adminToken })
   } catch (err: any) {
@@ -98,6 +108,23 @@ api.post('/events/:id/slots', async (c) => {
     }>()
     const currentUser = c.get('user')
 
+    if (!body.slots || !Array.isArray(body.slots) || body.slots.length === 0) {
+      return c.json({ error: '追加する候補枠を指定してください' }, 400)
+    }
+
+    if (body.slots.length > 500) {
+      return c.json({ error: '一度に追加できる候補枠は最大500件です' }, 400)
+    }
+
+    for (const s of body.slots) {
+      if (!isValidSlotDate(s.slotDate)) {
+        return c.json({ error: 'スロットの日付形式が不正です (YYYY-MM-DD)' }, 400)
+      }
+      if (!isValidTimeHM(s.startTime) || !isValidTimeHM(s.endTime)) {
+        return c.json({ error: 'スロットの時刻形式が不正です (HH:mm)' }, 400)
+      }
+    }
+
     const result = await addSlotsToEvent(
       c.env.DB,
       eventId,
@@ -109,7 +136,10 @@ api.post('/events/:id/slots', async (c) => {
     return c.json({ success: true, addedCount: result.addedCount })
   } catch (err: any) {
     console.error('Add slots error:', err)
-    return c.json({ error: err.message || 'スロットの追加に失敗しました' }, 403)
+    if (err.message === 'スロット追加の権限がありません') {
+      return c.json({ error: err.message }, 403)
+    }
+    return c.json({ error: err.message || 'スロットの追加に失敗しました' }, 400)
   }
 })
 
@@ -129,7 +159,10 @@ api.delete('/events/:id/slots/:slotId', async (c) => {
     return c.json({ success: true })
   } catch (err: any) {
     console.error('Delete slot error:', err)
-    return c.json({ error: err.message || 'スロットの削除に失敗しました' }, 403)
+    if (err.message === 'スロット削除の権限がありません') {
+      return c.json({ error: err.message }, 403)
+    }
+    return c.json({ error: err.message || 'スロットの削除に失敗しました' }, 500)
   }
 })
 
@@ -144,12 +177,18 @@ api.delete('/events/:id/slots-by-date', async (c) => {
     if (!slotDate) {
       return c.json({ error: '日付が指定されていません' }, 400)
     }
+    if (!isValidSlotDate(slotDate)) {
+      return c.json({ error: '日付の形式が正しくありません (YYYY-MM-DD)' }, 400)
+    }
 
     const res = await deleteSlotsByDate(c.env.DB, eventId, slotDate, adminToken, currentUser?.id)
     return c.json({ success: true, deletedCount: res.deletedCount })
   } catch (err: any) {
     console.error('Delete slots by date error:', err)
-    return c.json({ error: err.message || '日付スロットの削除に失敗しました' }, 403)
+    if (err.message === 'スロット削除の権限がありません') {
+      return c.json({ error: err.message }, 403)
+    }
+    return c.json({ error: err.message || '日付スロットの削除に失敗しました' }, 500)
   }
 })
 
@@ -166,6 +205,29 @@ api.patch('/events/:id', async (c) => {
     }>()
     const currentUser = c.get('user')
 
+    if (body.title !== undefined) {
+      if (!body.title.trim()) {
+        return c.json({ error: 'イベント名を入力してください' }, 400)
+      }
+      if (body.title.trim().length > 100) {
+        return c.json({ error: 'イベント名は100文字以内で入力してください' }, 400)
+      }
+    }
+    if (body.organizerName !== undefined) {
+      if (!body.organizerName.trim()) {
+        return c.json({ error: '主催者名を入力してください' }, 400)
+      }
+      if (body.organizerName.trim().length > 50) {
+        return c.json({ error: '主催者名は50文字以内で入力してください' }, 400)
+      }
+    }
+    if (body.description !== undefined && body.description.length > 2000) {
+      return c.json({ error: '補足説明は2000文字以内で入力してください' }, 400)
+    }
+    if (body.durationMinutes !== undefined && (typeof body.durationMinutes !== 'number' || body.durationMinutes <= 0)) {
+      return c.json({ error: '所要時間は正の数値を指定してください' }, 400)
+    }
+
     const ok = await updateEventDetails(c.env.DB, eventId, body, body.adminToken, currentUser?.id)
     if (!ok) {
       return c.json({ error: 'イベント情報の更新に失敗しました' }, 400)
@@ -174,7 +236,10 @@ api.patch('/events/:id', async (c) => {
     return c.json({ success: true })
   } catch (err: any) {
     console.error('Update event error:', err)
-    return c.json({ error: err.message || 'イベント情報の更新に失敗しました' }, 403)
+    if (err.message === 'イベント編集の権限がありません') {
+      return c.json({ error: err.message }, 403)
+    }
+    return c.json({ error: err.message || 'イベント情報の更新に失敗しました' }, 500)
   }
 })
 
@@ -193,6 +258,9 @@ api.post('/events/:id/responses', async (c) => {
     if (body.comment && body.comment.length > 500) {
       return c.json({ error: 'コメントは500文字以内で入力してください' }, 400)
     }
+    if (body.answers && body.answers.length > 500) {
+      return c.json({ error: '回答スロット数が上限（500件）を超えています' }, 400)
+    }
 
     const result = await submitResponse(c.env.DB, eventId, body)
     return c.json(result)
@@ -203,6 +271,9 @@ api.post('/events/:id/responses', async (c) => {
     }
     if (err.message === '編集権限がありません') {
       return c.json({ error: err.message }, 403)
+    }
+    if (err.message.includes('上限')) {
+      return c.json({ error: err.message }, 400)
     }
     return c.json({ error: err.message || '回答の送信に失敗しました' }, 500)
   }
@@ -226,6 +297,9 @@ api.post('/events/:id/confirm', async (c) => {
     return c.json({ success: true, confirmedSlotId: slotId })
   } catch (err: any) {
     console.error('Confirm slot error:', err)
+    if (err.message === '指定されたスロットが存在しません') {
+      return c.json({ error: err.message }, 400)
+    }
     return c.json({ error: '日程の確定に失敗しました' }, 500)
   }
 })

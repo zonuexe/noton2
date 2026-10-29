@@ -16,14 +16,18 @@ export default defineConfig({
     }),
     cloudflare(),
   ],
-  build: {
-    rollupOptions: {
-      input: {
-        client: 'src/client/main.tsx',
-      },
-      output: {
-        entryFileNames: 'static/client.js',
-        assetFileNames: 'static/[name].[ext]',
+  environments: {
+    client: {
+      build: {
+        rollupOptions: {
+          input: {
+            client: 'src/client/main.tsx',
+          },
+          output: {
+            entryFileNames: 'static/client.js',
+            assetFileNames: 'static/[name].[ext]',
+          },
+        },
       },
     },
   },

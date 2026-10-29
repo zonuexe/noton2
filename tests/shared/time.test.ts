@@ -7,6 +7,9 @@ import {
   splitIntoSlots,
   getSlotsForHour,
   formatDateLabel,
+  formatDateISO,
+  isValidSlotDate,
+  isValidTimeHM,
   formatTimeHM,
   findSlotByExactTime,
   TIMELINE_HOURS,
@@ -54,6 +57,13 @@ describe('shared/time - 日時・スロット計算ロジック', () => {
       expect(slots).toHaveLength(2)
       expect(slots[0]).toEqual({ start: '10:00', end: '11:00' })
       expect(slots[1]).toEqual({ start: '11:00', end: '11:45' })
+    })
+
+    it('深夜00:00（または24:00）終了を正しく24時として分割できること', () => {
+      const slots = splitIntoSlots('22:00', '00:00', 60)
+      expect(slots).toHaveLength(2)
+      expect(slots[0]).toEqual({ start: '22:00', end: '23:00' })
+      expect(slots[1]).toEqual({ start: '23:00', end: '00:00' })
     })
   })
 
@@ -145,6 +155,29 @@ describe('shared/time - 日時・スロット計算ロジック', () => {
       expect(TIMELINE_HOURS[18]).toBe('24')
       expect(TIMELINE_HOURS[19]).toBe('01')
       expect(TIMELINE_HOURS[23]).toBe('05')
+    })
+  })
+
+  describe('formatDateISO & isValidSlotDate: 安全な日付処理', () => {
+    it('ローカル時刻基準で YYYY-MM-DD 文字列を生成できること', () => {
+      const d = new Date(2026, 9, 29) // 2026-10-29
+      expect(formatDateISO(d)).toBe('2026-10-29')
+    })
+
+    it('isValidSlotDate: 正しい YYYY-MM-DD を判定できること', () => {
+      expect(isValidSlotDate('2026-10-29')).toBe(true)
+      expect(isValidSlotDate('2026-02-28')).toBe(true)
+      expect(isValidSlotDate('2026-13-01')).toBe(false)
+      expect(isValidSlotDate('invalid')).toBe(false)
+      expect(isValidSlotDate(null)).toBe(false)
+    })
+
+    it('isValidTimeHM: 正しい HH:mm を判定できること', () => {
+      expect(isValidTimeHM('10:00')).toBe(true)
+      expect(isValidTimeHM('23:59')).toBe(true)
+      expect(isValidTimeHM('24:00')).toBe(true)
+      expect(isValidTimeHM('25:00')).toBe(false)
+      expect(isValidTimeHM('invalid')).toBe(false)
     })
   })
 })

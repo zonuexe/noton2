@@ -5,6 +5,11 @@
 import { describe, it, expect, vi } from 'vitest'
 import { sanitizeReturnTo } from '@/server/routes/auth'
 import { getEventById } from '@/server/db/client'
+import {
+  getSessionSecret,
+  DEFAULT_SESSION_SECRET,
+  DEV_EXAMPLE_SECRET,
+} from '@/server/middleware/auth'
 
 describe('server/auth - セキュリティと情報漏洩防止', () => {
   describe('sanitizeReturnTo: オープンリダイレクト攻撃対策', () => {
@@ -112,6 +117,19 @@ describe('server/auth - セキュリティと情報漏洩防止', () => {
       expect(event).not.toBeNull()
       expect(event?.isOrganizer).toBe(true)
       expect(event?.adminToken).toBe('secret-admin-token-xyz')
+    })
+  })
+
+  describe('getSessionSecret: セッション秘密鍵の安全性検証', () => {
+    it('開発環境では未設定時にデフォルト秘密鍵を返すこと', () => {
+      const secret = getSessionSecret({ DB: {} as any })
+      expect(secret).toBe(DEFAULT_SESSION_SECRET)
+    })
+
+    it('開発環境で明示的に設定されている場合はその秘密鍵を返すこと', () => {
+      const custom = 'my-custom-dev-secret-key-12345678'
+      const secret = getSessionSecret({ DB: {} as any, SESSION_SECRET: custom })
+      expect(secret).toBe(custom)
     })
   })
 })

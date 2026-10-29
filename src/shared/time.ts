@@ -23,12 +23,49 @@ export function formatDateLabel(dateStr: string): string {
   return `${year}/${month}/${day}(${dayNames[d.getDay()]})`
 }
 
+// ローカル時刻基準で安全に YYYY-MM-DD 文字列を取得 (UTCズレ防止)
+export function formatDateISO(d: Date): string {
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+// 今日の日付 (ローカル時刻基準 YYYY-MM-DD)
+export function getTodayISO(): string {
+  return formatDateISO(new Date())
+}
+
+// 日付形式チェック (YYYY-MM-DD かつ実在する日付)
+export function isValidSlotDate(dateStr?: string | null): boolean {
+  if (!dateStr || typeof dateStr !== 'string') return false
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false
+  const [y, m, d] = dateStr.split('-').map(Number)
+  if (m < 1 || m > 12 || d < 1 || d > 31) return false
+  const dt = new Date(y, m - 1, d)
+  return (
+    dt.getFullYear() === y &&
+    dt.getMonth() === m - 1 &&
+    dt.getDate() === d
+  )
+}
+
 // 時間フォーマット: 'HH:mm'
 export function formatTimeHM(hour: number, minute: number): string {
-  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+  const h = hour === 24 ? '00' : String(hour).padStart(2, '0')
+  return `${h}:${String(minute).padStart(2, '0')}`
+}
+
+// 時間形式チェック ('HH:mm')
+export function isValidTimeHM(timeStr?: string | null): boolean {
+  if (!timeStr || typeof timeStr !== 'string') return false
+  if (!/^\d{2}:\d{2}$/.test(timeStr)) return false
+  const [h, m] = timeStr.split(':').map(Number)
+  return h >= 0 && h <= 24 && m >= 0 && m < 60
 }
 
 // 任意の開始〜終了時間帯を intervalMinutes (30 or 60分) 刻みの独立スロットに分割
+// ※ 終了時刻が '00:00' の場合は深夜24:00 (24時間表記) として計算
 export function splitIntoSlots(
   startTime: string,
   endTime: string,
@@ -36,7 +73,13 @@ export function splitIntoSlots(
 ): Array<{ start: string; end: string }> {
   const result: Array<{ start: string; end: string }> = []
   const [startHour, startMin] = startTime.split(':').map(Number)
-  const [endHour, endMin] = endTime.split(':').map(Number)
+  let [endHour, endMin] = endTime.split(':').map(Number)
+
+  // 00:00 または 24:00 終了は深夜24時として扱う
+  if ((endTime === '00:00' || endTime === '24:00') && startHour > 0) {
+    endHour = 24
+    endMin = 0
+  }
 
   let curH = startHour
   let curM = startMin
@@ -44,14 +87,14 @@ export function splitIntoSlots(
   const step = intervalMinutes > 0 ? intervalMinutes : 60
 
   while (curH < endHour || (curH === endHour && curM < endMin)) {
-    let nextTotalMin = curH * 60 + curM + step
-    let nextH = Math.floor(nextTotalMin / 60)
-    let nextM = nextTotalMin % 60
+    const nextTotalMin = curH * 60 + curM + step
+    const nextH = Math.floor(nextTotalMin / 60)
+    const nextM = nextTotalMin % 60
 
     if (nextH > endHour || (nextH === endHour && nextM > endMin)) {
       const s = formatTimeHM(curH, curM)
       const e = formatTimeHM(endHour, endMin)
-      if (s < e) result.push({ start: s, end: e })
+      if (s !== e) result.push({ start: s, end: e })
       break
     }
 

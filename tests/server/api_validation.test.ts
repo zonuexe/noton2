@@ -244,5 +244,85 @@ describe('server/api - 入力バリデーションと認可チェック', () => 
       const data = await res.json()
       expect(data.error).toBe('日付が指定されていません')
     })
+
+    it('date クエリパラメータの形式が不正な場合、400 エラーを返すこと', async () => {
+      const app = createApp(null)
+
+      const res = await app.request('/api/events/test-event-id/slots-by-date?date=invalid-date', {
+        method: 'DELETE',
+      })
+
+      expect(res.status).toBe(400)
+      const data = await res.json()
+      expect(data.error).toBe('日付の形式が正しくありません (YYYY-MM-DD)')
+    })
+  })
+
+  describe('PATCH /api/events/:id - イベント基本情報更新時の入力検証', () => {
+    it('タイトルを空文字に更新しようとした場合、400 エラーを返すこと', async () => {
+      const app = createApp(null)
+
+      const res = await app.request('/api/events/test-event-id', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: '   ',
+        }),
+      })
+
+      expect(res.status).toBe(400)
+      const data = await res.json()
+      expect(data.error).toBe('イベント名を入力してください')
+    })
+
+    it('主催者名を空文字に更新しようとした場合、400 エラーを返すこと', async () => {
+      const app = createApp(null)
+
+      const res = await app.request('/api/events/test-event-id', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          organizerName: '',
+        }),
+      })
+
+      expect(res.status).toBe(400)
+      const data = await res.json()
+      expect(data.error).toBe('主催者名を入力してください')
+    })
+  })
+
+  describe('POST /api/events/:id/slots - 候補スロット追加時の入力検証', () => {
+    it('スロット配列が空の場合、400 エラーを返すこと', async () => {
+      const app = createApp(null)
+
+      const res = await app.request('/api/events/test-event-id/slots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slots: [],
+        }),
+      })
+
+      expect(res.status).toBe(400)
+      const data = await res.json()
+      expect(data.error).toBe('追加する候補枠を指定してください')
+    })
+
+    it('日付形式が不正なスロットが含まれる場合、400 エラーを返すこと', async () => {
+      const app = createApp(null)
+
+      const res = await app.request('/api/events/test-event-id/slots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slots: [{ slotDate: 'bad-date', startTime: '10:00', endTime: '11:00' }],
+        }),
+      })
+
+      expect(res.status).toBe(400)
+      const data = await res.json()
+      expect(data.error).toBe('スロットの日付形式が不正です (YYYY-MM-DD)')
+    })
   })
 })

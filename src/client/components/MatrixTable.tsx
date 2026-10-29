@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import { defineVaporComponent, computed, ref } from 'vue'
+import { defineVaporComponent, computed, ref, onMounted } from 'vue'
 import type { AnswerStatus, EventDetail } from '@/shared/types'
 import { TIMELINE_HOURS, formatDateLabel, getSlotsForHour } from '@/shared/time'
 import { calculateSlotSummary } from '@/shared/state'
@@ -24,16 +24,21 @@ export const MatrixTable = defineVaporComponent({
   },
   setup(props) {
     const isDeleting = ref(false)
+    const storedResponse = ref<{ participantId?: string; editToken?: string; name?: string } | null>(null)
 
-    // localStorage から自分の回答情報を取得
-    const myResponse = computed(() => {
+    const syncStoredResponse = () => {
       try {
-        if (typeof window === 'undefined') return null
+        if (typeof window === 'undefined') return
         const stored = localStorage.getItem(`noton2_resp_${props.event.id}`)
-        return stored ? JSON.parse(stored) : null
+        storedResponse.value = stored ? JSON.parse(stored) : null
       } catch (e) {
-        return null
+        storedResponse.value = null
       }
+    }
+
+    onMounted(() => {
+      syncStoredResponse()
+      window.addEventListener('noton2-response-changed', syncStoredResponse)
     })
 
     // ユニーク日付一覧
@@ -43,15 +48,20 @@ export const MatrixTable = defineVaporComponent({
       return Array.from(dateSet).sort()
     })
 
+    const isOrganizer = computed(() => Boolean(props.event.isOrganizer))
+
     // 参加者削除処理
     const handleDeleteParticipant = async (participantId: string) => {
       if (!confirm('この参加者の回答を削除してもよろしいですか？')) return
 
       isDeleting.value = true
       try {
-        const token =
-          props.adminToken ||
-          (myResponse.value?.participantId === participantId ? myResponse.value?.editToken : '')
+        const isMe = storedResponse.value?.participantId === participantId
+        const token = isOrganizer.value
+          ? props.adminToken
+          : isMe
+            ? storedResponse.value?.editToken || ''
+            : ''
 
         const res = await fetch(
           `/api/events/${props.event.id}/participants/${participantId}?token=${encodeURIComponent(token)}`,
@@ -64,8 +74,10 @@ export const MatrixTable = defineVaporComponent({
           return
         }
 
-        if (myResponse.value?.participantId === participantId) {
+        if (isMe) {
           localStorage.removeItem(`noton2_resp_${props.event.id}`)
+          storedResponse.value = null
+          window.dispatchEvent(new CustomEvent('noton2-response-changed'))
         }
 
         props.onReload()
@@ -174,9 +186,9 @@ export const MatrixTable = defineVaporComponent({
           {props.event.slots.length === 0 ? (
             <div class="py-12 text-center text-stone-400 text-sm space-y-2">
               <p>候補日時がまだ登録されていません。</p>
-              {props.adminToken ? (
+              {isOrganizer.value ? (
                 <p class="text-xs text-amber-700 font-bold">
-                  上部の「📅 日時・枠を追加する」から候補枠を追加してください。
+                  上部の「📅 日時・枠を追加」から候補枠を追加してください。
                 </p>
               ) : null}
             </div>
@@ -200,7 +212,7 @@ export const MatrixTable = defineVaporComponent({
                             <span class="truncate font-['M_PLUS_Rounded_1c']">
                               {formatDateLabel(dateStr)}
                             </span>
-                            {props.adminToken ? (
+                            {isOrganizer.value ? (
                               <button
                                 type="button"
                                 onClick={() => handleDeleteDateSlots(dateStr)}
@@ -245,26 +257,28 @@ export const MatrixTable = defineVaporComponent({
 
                         {/* 2行目以降: 各参加者の回答行 */}
                         {props.event.participants.map((p) => {
-                          const isMe = myResponse.value?.participantId === p.id
+                          const isMe = storedResponse.value?.participantId === p.id
                           const canDelete =
-                            props.adminToken || (isMe && myResponse.value?.editToken)
+                            isOrganizer.value || (isMe && Boolean(storedResponse.value?.editToken))
 
                           return (
                             <div key={p.id} class="flex items-center gap-2">
                               {/* 左側: メンバー名ボックス */}
                               <div class="w-28 sm:w-32 md:w-36 shrink-0 h-6 sm:h-7 border border-stone-300 rounded bg-white px-2 py-0.5 text-xs text-stone-800 flex items-center justify-between">
-                                <button
-                                  type="button"
-                                  onClick={scrollToAnswerForm}
-                                  class={`text-left truncate cursor-pointer underline ${
-                                    isMe
-                                      ? 'text-sky-700 font-bold'
-                                      : 'text-blue-600 hover:text-blue-800'
-                                  }`}
-                                  title={`${p.name} (予定の編集・確認へ)`}
-                                >
-                                  {p.name}
-                                </button>
+                                {isMe ? (
+                                  <button
+                                    type="button"
+                                    onClick={scrollToAnswerForm}
+                                    class="text-left truncate cursor-pointer underline text-sky-700 font-extrabold"
+                                    title="あなたの予定（タップして編集）"
+                                  >
+                                    {p.name}
+                                  </button>
+                                ) : (
+                                  <span class="truncate text-stone-700 font-medium" title={p.name}>
+                                    {p.name}
+                                  </span>
+                                )}
                                 {canDelete ? (
                                   <button
                                     type="button"

@@ -20,12 +20,22 @@ export type AuthVariables = {
 
 export const SESSION_COOKIE_NAME = 'noton2_session'
 export const DEFAULT_SESSION_SECRET = 'noton2-default-development-secret-key-32chars'
+export const DEV_EXAMPLE_SECRET = 'local-development-session-secret-change-me-in-production'
 
 export function getSessionSecret(env: AuthBindings): string {
-  if (import.meta.env.PROD && !env.SESSION_SECRET) {
-    throw new Error('FATAL: SESSION_SECRET must be configured in production environment.')
+  const secret = env.SESSION_SECRET
+  if (import.meta.env.PROD) {
+    if (!secret || secret === DEFAULT_SESSION_SECRET || secret === DEV_EXAMPLE_SECRET) {
+      throw new Error(
+        'FATAL: A secure, unique SESSION_SECRET must be configured in production environment.'
+      )
+    }
+    if (secret.length < 32) {
+      throw new Error('FATAL: SESSION_SECRET must be at least 32 characters long.')
+    }
+    return secret
   }
-  return env.SESSION_SECRET || DEFAULT_SESSION_SECRET
+  return secret || DEFAULT_SESSION_SECRET
 }
 
 export const authMiddleware = createMiddleware<{

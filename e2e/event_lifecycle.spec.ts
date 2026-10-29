@@ -87,5 +87,22 @@ test.describe('イベントライフサイクルと回答登録のE2Eテスト',
 
     // コメント一覧に反映されていることを確認
     await expect(page.getByText('よろしくお願いします！')).toBeVisible()
+
+    // 12. 主催者による「日程確定」機能の動作確認
+    const confirmMenuButton = page.getByRole('button', { name: /日程を確定する/ })
+    await expect(confirmMenuButton).toBeVisible()
+    await confirmMenuButton.click()
+
+    // 最初の候補枠を「この日時に決定する」で確定
+    const decideSlotButton = page.getByRole('button', { name: /この日時に決定する/ }).first()
+    await expect(decideSlotButton).toBeVisible()
+
+    // window.alert を自動承諾
+    page.once('dialog', (dialog) => dialog.accept())
+    await decideSlotButton.click()
+
+    // 確定バナーが表示されることを確認
+    await expect(page.getByText('開催日時が決定しました！')).toBeVisible()
+    await expect(page.getByText('🎉 開催決定')).toBeVisible()
   })
 })

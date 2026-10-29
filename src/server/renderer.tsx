@@ -23,7 +23,20 @@ export const renderer = jsxRenderer(({ children, title, description, ogImage, og
   const pageTitle = title ? `${title} | noton2` : 'noton2 - ログイン不要の超高速日程調整ツール'
   const pageDescription =
     description || 'Cloudflare で完結する超高速日程調整Webアプリ。カレンダーから時間枠を選ぶだけで直感的に日程を調整できます。'
-  const currentUrl = ogUrl || 'https://noton2.dev'
+
+  // OGP URL からクエリパラメータ (adminToken 等) を確実に除外して生成
+  const requestUrl = new URL(c.req.url)
+  const currentUrl = ogUrl || `${requestUrl.origin}${requestUrl.pathname}`
+
+  // 安全な外部URLの検証 (http/https のみ許可)
+  const safeProfileUrl =
+    user?.profileUrl && /^https?:\/\//i.test(user.profileUrl)
+      ? user.profileUrl
+      : user
+        ? `https://github.com/${encodeURIComponent(user.username)}`
+        : '#'
+  const safeAvatarUrl =
+    user?.avatarUrl && /^https?:\/\//i.test(user.avatarUrl) ? user.avatarUrl : null
 
   return (
     <html lang="ja">
@@ -89,15 +102,15 @@ export const renderer = jsxRenderer(({ children, title, description, ogImage, og
                 {user ? (
                   <div class="flex items-center gap-2 pl-2 border-l border-rose-200">
                     <a
-                      href={user.profileUrl || `https://github.com/${user.username}`}
+                      href={safeProfileUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       class="flex items-center gap-1.5 group"
                       title={`GitHub: @${user.username}`}
                     >
-                      {user.avatarUrl ? (
+                      {safeAvatarUrl ? (
                         <img
-                          src={user.avatarUrl}
+                          src={safeAvatarUrl}
                           alt={user.username}
                           class="w-7 h-7 rounded-full border border-rose-200 shadow-sm"
                         />
@@ -110,12 +123,14 @@ export const renderer = jsxRenderer(({ children, title, description, ogImage, og
                         @{user.username}
                       </span>
                     </a>
-                    <a
-                      href="/auth/logout"
-                      class="text-xs text-stone-400 hover:text-stone-700 hover:underline px-1 py-0.5"
-                    >
-                      ログアウト
-                    </a>
+                    <form method="post" action="/auth/logout" class="inline m-0">
+                      <button
+                        type="submit"
+                        class="text-xs text-stone-400 hover:text-stone-700 hover:underline px-1 py-0.5 bg-transparent border-0 cursor-pointer"
+                      >
+                        ログアウト
+                      </button>
+                    </form>
                   </div>
                 ) : (
                   <a

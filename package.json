@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "wrangler dev",
     "deploy": "wrangler deploy",
+    "typecheck": "tsc -p tsconfig.server.json --noEmit && tsc -p tsconfig.client.json --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "db:migrate:local": "wrangler d1 execute noton2-db --local --file=./schema.sql",

@@ -52,6 +52,18 @@ export const AnswerForm = defineVaporComponent({
     // 刻み幅が30分かどうか
     const is30Min = computed(() => props.event.slotIntervalMinutes === 30)
 
+    const handleStorageChange = () => {
+      try {
+        if (typeof window === 'undefined') return
+        const stored = localStorage.getItem(`noton2_resp_${props.event.id}`)
+        if (!stored) {
+          startNewResponse()
+        }
+      } catch (e) {
+        console.error(e)
+      }
+    }
+
     // localStorage から過去の自分の回答を取得
     onMounted(() => {
       try {
@@ -90,6 +102,7 @@ export const AnswerForm = defineVaporComponent({
       // グローバル mouseup でドラッグ終了
       window.addEventListener('mouseup', stopDrag)
       window.addEventListener('touchend', stopDrag)
+      window.addEventListener('noton2-response-changed', handleStorageChange)
     })
 
     const stopDrag = () => {
@@ -99,6 +112,7 @@ export const AnswerForm = defineVaporComponent({
     onUnmounted(() => {
       window.removeEventListener('mouseup', stopDrag)
       window.removeEventListener('touchend', stopDrag)
+      window.removeEventListener('noton2-response-changed', handleStorageChange)
     })
 
     // 全スロットを一括設定
@@ -160,7 +174,7 @@ export const AnswerForm = defineVaporComponent({
           comment: comment.value.trim() || undefined,
           answers: props.event.slots.map((s) => ({
             slotId: s.id,
-            status: answers.value[s.id] || 'unavailable',
+            status: answers.value[s.id] || 'available',
           })),
         }
 
@@ -188,6 +202,7 @@ export const AnswerForm = defineVaporComponent({
             name: name.value.trim(),
           })
         )
+        window.dispatchEvent(new CustomEvent('noton2-response-changed'))
 
         successMessage.value = isNew ? '回答を登録しました！' : '回答を更新しました！'
         setTimeout(() => (successMessage.value = ''), 4000)

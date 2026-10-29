@@ -7,6 +7,7 @@ import { AnswerForm } from './AnswerForm'
 import { MatrixTable } from './MatrixTable'
 import { AdminControls } from './AdminControls'
 import type { EventDetail } from '@/shared/types'
+import { formatDateLabel } from '@/shared/time'
 
 export const EventDetailApp = defineVaporComponent({
   props: {
@@ -20,7 +21,7 @@ export const EventDetailApp = defineVaporComponent({
     const isReloading = ref(false)
     const isCopied = ref(false)
 
-    // URLクエリから adminToken を抽出
+    // URLクエリから adminToken を抽出 (初期値)
     const getUrlAdminToken = () => {
       if (typeof window === 'undefined') return ''
       const params = new URLSearchParams(window.location.search)
@@ -28,31 +29,19 @@ export const EventDetailApp = defineVaporComponent({
     }
     const urlAdminToken = ref(getUrlAdminToken())
 
-    // 主催者権限（adminToken一致 または GitHubログインユーザー一致）
-    const isOrganizer = computed(
-      () => Boolean(event.value.isOrganizer || event.value.adminToken || urlAdminToken.value)
-    )
+    // サーバー側で認証検証済みの isOrganizer を唯一の判定基準とする (偽の ?admin=xxx でのUI露出を防止)
+    const isOrganizer = computed(() => Boolean(event.value.isOrganizer))
 
     const effectiveAdminToken = computed(
-      () => event.value.adminToken || urlAdminToken.value || ''
+      () => event.value.adminToken || (isOrganizer.value ? urlAdminToken.value : '')
     )
-
-    // 日付フォーマット
-    const formatDateLabel = (dateStr: string) => {
-      const parts = dateStr.split('-')
-      if (parts.length < 3) return dateStr
-      const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]))
-      const dayNames = ['日', '月', '火', '水', '木', '金', '土']
-      return `${Number(parts[1])}/${Number(parts[2])} (${dayNames[d.getDay()]})`
-    }
 
     // 最新データのリロード
     const reloadEvent = async () => {
       isReloading.value = true
       try {
-        const query = effectiveAdminToken.value
-          ? `?admin=${encodeURIComponent(effectiveAdminToken.value)}`
-          : ''
+        const token = effectiveAdminToken.value || urlAdminToken.value
+        const query = token ? `?admin=${encodeURIComponent(token)}` : ''
         const res = await fetch(`/api/events/${event.value.id}${query}`)
         if (res.ok) {
           const updated = await res.json()
@@ -87,17 +76,18 @@ export const EventDetailApp = defineVaporComponent({
           <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
             <div class="space-y-1.5 flex-1">
               <div class="flex items-center gap-2 flex-wrap">
-                <span class="text-xs bg-rose-100 text-rose-700 font-bold px-2.5 py-0.5 rounded-full">
-                  日程調整中
-                </span>
+                {!confirmedSlot.value ? (
+                  <span class="text-xs bg-rose-100 text-rose-700 font-bold px-2.5 py-0.5 rounded-full">
+                    日程調整中
+                  </span>
+                ) : (
+                  <span class="text-xs bg-amber-500 text-white font-extrabold px-2.5 py-0.5 rounded-full animate-pulse">
+                    🎉 開催決定
+                  </span>
+                )}
                 {isOrganizer.value ? (
                   <span class="text-xs bg-amber-100 text-amber-800 font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
                     <span>👑</span> 主催者モード
-                  </span>
-                ) : null}
-                {confirmedSlot.value ? (
-                  <span class="text-xs bg-amber-500 text-white font-extrabold px-2.5 py-0.5 rounded-full animate-pulse">
-                    🎉 開催決定
                   </span>
                 ) : null}
               </div>

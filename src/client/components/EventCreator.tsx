@@ -4,7 +4,7 @@
 
 import { defineVaporComponent, ref, computed } from 'vue'
 import type { CreateEventInput, User } from '@/shared/types'
-import { splitIntoSlots, formatDateLabel } from '@/shared/time'
+import { splitIntoSlots, formatDateLabel, formatDateISO, getTodayISO } from '@/shared/time'
 
 export const EventCreator = defineVaporComponent({
   props: {
@@ -25,13 +25,13 @@ export const EventCreator = defineVaporComponent({
     // スロット刻み幅 (分: 30 or 60)
     const slotIntervalMinutes = ref(60)
 
-    // カレンダー選択用ステータス
+    // カレンダー選択用ステータス (ローカル時間基準で初期化)
     const today = new Date()
     const currentYear = ref(today.getFullYear())
     const currentMonth = ref(today.getMonth()) // 0-indexed
 
     // 選択された日付のセット ('YYYY-MM-DD')
-    const todayStr = today.toISOString().split('T')[0]
+    const todayStr = getTodayISO()
     const selectedDates = ref<string[]>([todayStr])
 
     // 時間帯テンプレート
@@ -66,7 +66,7 @@ export const EventCreator = defineVaporComponent({
     const isCopiedShareUrl = ref(false)
     const isCopiedAdminUrl = ref(false)
 
-    // カレンダーの日付グリッド計算
+    // カレンダーの日付グリッド計算 (タイムゾーンズレを防止)
     const calendarDays = computed(() => {
       const year = currentYear.value
       const month = currentMonth.value
@@ -89,7 +89,7 @@ export const EventCreator = defineVaporComponent({
       for (let i = startDayOfWeek - 1; i >= 0; i--) {
         const d = prevLastDay - i
         const prevDate = new Date(year, month - 1, d)
-        const dateStr = prevDate.toISOString().split('T')[0]
+        const dateStr = formatDateISO(prevDate)
         days.push({
           dateStr,
           dayNum: d,
@@ -102,10 +102,10 @@ export const EventCreator = defineVaporComponent({
       }
 
       // 当月
-      const nowStr = new Date().toISOString().split('T')[0]
+      const nowStr = getTodayISO()
       for (let d = 1; d <= lastDay.getDate(); d++) {
         const current = new Date(year, month, d)
-        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+        const dateStr = formatDateISO(current)
         days.push({
           dateStr,
           dayNum: d,
@@ -121,7 +121,7 @@ export const EventCreator = defineVaporComponent({
       const remaining = 42 - days.length
       for (let d = 1; d <= remaining; d++) {
         const nextDate = new Date(year, month + 1, d)
-        const dateStr = nextDate.toISOString().split('T')[0]
+        const dateStr = formatDateISO(nextDate)
         days.push({
           dateStr,
           dayNum: d,
@@ -241,7 +241,8 @@ export const EventCreator = defineVaporComponent({
         errorMessage.value = 'まずはカレンダーから日付を選んでください'
         return
       }
-      if (customStartTime.value >= customEndTime.value) {
+      const isMidnightEnd = customEndTime.value === '00:00' || customEndTime.value === '24:00'
+      if (!isMidnightEnd && customStartTime.value >= customEndTime.value) {
         errorMessage.value = '終了時刻は開始時刻より後に設定してください'
         return
       }
@@ -271,7 +272,16 @@ export const EventCreator = defineVaporComponent({
     }
 
     const removeSlot = (index: number) => {
+      const removed = slots.value[index]
       slots.value.splice(index, 1)
+      if (removed && !slots.value.some((s) => s.slotDate === removed.slotDate)) {
+        selectedDates.value = selectedDates.value.filter((d) => d !== removed.slotDate)
+      }
+    }
+
+    const clearAllSlots = () => {
+      slots.value = []
+      selectedDates.value = []
     }
 
     // イベント送信
@@ -745,8 +755,8 @@ export const EventCreator = defineVaporComponent({
                     {slots.value.length > 0 ? (
                       <button
                         type="button"
-                        onClick={() => (slots.value = [])}
-                        class="text-xs text-stone-400 hover:text-rose-500"
+                        onClick={clearAllSlots}
+                        class="text-xs text-stone-400 hover:text-rose-500 cursor-pointer"
                       >
                         すべてクリア
                       </button>

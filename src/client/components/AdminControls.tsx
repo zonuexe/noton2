@@ -4,7 +4,7 @@
 
 import { defineVaporComponent, ref } from 'vue'
 import type { EventDetail } from '@/shared/types'
-import { splitIntoSlots, formatDateLabel } from '@/shared/time'
+import { splitIntoSlots, formatDateLabel, getTodayISO } from '@/shared/time'
 
 export const AdminControls = defineVaporComponent({
   props: {
@@ -29,10 +29,10 @@ export const AdminControls = defineVaporComponent({
     // セクション開閉
     const isAddSlotOpen = ref(false)
     const isEditInfoOpen = ref(false)
+    const isConfirmOpen = ref(false)
 
     // 新規スロット追加用フォーム
-    const todayStr = new Date().toISOString().split('T')[0]
-    const newSlotDate = ref(todayStr)
+    const newSlotDate = ref(getTodayISO())
     const newStartTime = ref('10:00')
     const newEndTime = ref('19:00')
 
@@ -40,6 +40,14 @@ export const AdminControls = defineVaporComponent({
     const editTitle = ref(props.event.title)
     const editDescription = ref(props.event.description || '')
     const editDuration = ref(props.event.durationMinutes)
+    const editOrganizerName = ref(props.event.organizerName)
+
+    const syncEditForm = () => {
+      editTitle.value = props.event.title
+      editDescription.value = props.event.description || ''
+      editDuration.value = props.event.durationMinutes
+      editOrganizerName.value = props.event.organizerName
+    }
 
     const timePresets = [
       { label: '日中 (10:00〜19:00)', start: '10:00', end: '19:00' },
@@ -48,13 +56,42 @@ export const AdminControls = defineVaporComponent({
       { label: '夜 (18:00〜22:00)', start: '18:00', end: '22:00' },
     ]
 
+    // 日程確定 / 解除
+    const handleConfirmSlot = async (slotId: string | null) => {
+      isUpdating.value = true
+      try {
+        const res = await fetch(`/api/events/${props.event.id}/confirm`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            adminToken: props.adminToken || undefined,
+            slotId,
+          }),
+        })
+
+        const data = await res.json()
+        if (!res.ok) {
+          throw new Error(data.error || '日程確定の更新に失敗しました')
+        }
+
+        alert(slotId ? '開催日時を確定しました！🎉' : '日程の確定を解除しました')
+        isConfirmOpen.value = false
+        props.onReload()
+      } catch (e: any) {
+        alert(e.message || '通信エラーが発生しました')
+      } finally {
+        isUpdating.value = false
+      }
+    }
+
     // スロットの追加
     const handleAddSlots = async () => {
       if (!newSlotDate.value) {
         alert('日付を選択してください')
         return
       }
-      if (newStartTime.value >= newEndTime.value) {
+      const isMidnightEnd = newEndTime.value === '00:00' || newEndTime.value === '24:00'
+      if (!isMidnightEnd && newStartTime.value >= newEndTime.value) {
         alert('終了時刻は開始時刻より後に設定してください')
         return
       }
@@ -100,6 +137,10 @@ export const AdminControls = defineVaporComponent({
         alert('タイトルを入力してください')
         return
       }
+      if (!editOrganizerName.value.trim()) {
+        alert('主催者名を入力してください')
+        return
+      }
 
       isUpdating.value = true
       try {
@@ -111,6 +152,7 @@ export const AdminControls = defineVaporComponent({
             title: editTitle.value.trim(),
             description: editDescription.value.trim() || undefined,
             durationMinutes: editDuration.value,
+            organizerName: editOrganizerName.value.trim(),
           }),
         })
 
@@ -215,25 +257,59 @@ ${shareUrl}
         </div>
 
         {/* アクションボタン群 */}
-        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 pt-1">
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 pt-1">
           <button
             type="button"
-            onClick={() => (isAddSlotOpen.value = !isAddSlotOpen.value)}
-            class="px-4 py-3 bg-white border border-amber-300 hover:border-amber-500 rounded-2xl text-left transition shadow-xs flex items-center justify-between font-bold text-xs text-amber-950 cursor-pointer"
+            onClick={() => {
+              isConfirmOpen.value = !isConfirmOpen.value
+              if (isConfirmOpen.value) {
+                isAddSlotOpen.value = false
+                isEditInfoOpen.value = false
+              }
+            }}
+            class={`px-3 py-3 border rounded-2xl text-left transition shadow-xs flex items-center justify-between font-bold text-xs cursor-pointer ${
+              props.event.confirmedSlotId
+                ? 'bg-amber-500 text-white border-amber-600 hover:bg-amber-600'
+                : 'bg-white text-amber-950 border-amber-300 hover:border-amber-500'
+            }`}
           >
             <span class="flex items-center gap-1.5">
-              <span>📅</span> 日時・枠を追加する
+              <span>🎉</span> 日程を確定する
+            </span>
+            <span>{isConfirmOpen.value ? '▲' : '▼'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              isAddSlotOpen.value = !isAddSlotOpen.value
+              if (isAddSlotOpen.value) {
+                isConfirmOpen.value = false
+                isEditInfoOpen.value = false
+              }
+            }}
+            class="px-3 py-3 bg-white border border-amber-300 hover:border-amber-500 rounded-2xl text-left transition shadow-xs flex items-center justify-between font-bold text-xs text-amber-950 cursor-pointer"
+          >
+            <span class="flex items-center gap-1.5">
+              <span>📅</span> 日時・枠を追加
             </span>
             <span>{isAddSlotOpen.value ? '▲' : '▼'}</span>
           </button>
 
           <button
             type="button"
-            onClick={() => (isEditInfoOpen.value = !isEditInfoOpen.value)}
-            class="px-4 py-3 bg-white border border-amber-300 hover:border-amber-500 rounded-2xl text-left transition shadow-xs flex items-center justify-between font-bold text-xs text-amber-950 cursor-pointer"
+            onClick={() => {
+              isEditInfoOpen.value = !isEditInfoOpen.value
+              if (isEditInfoOpen.value) {
+                syncEditForm()
+                isConfirmOpen.value = false
+                isAddSlotOpen.value = false
+              }
+            }}
+            class="px-3 py-3 bg-white border border-amber-300 hover:border-amber-500 rounded-2xl text-left transition shadow-xs flex items-center justify-between font-bold text-xs text-amber-950 cursor-pointer"
           >
             <span class="flex items-center gap-1.5">
-              <span>✏️</span> イベント情報を編集
+              <span>✏️</span> 情報を編集
             </span>
             <span>{isEditInfoOpen.value ? '▲' : '▼'}</span>
           </button>
@@ -241,29 +317,80 @@ ${shareUrl}
           <button
             type="button"
             onClick={copyAnnouncement}
-            class="px-4 py-3 bg-white border border-amber-300 hover:border-amber-500 rounded-2xl text-left transition shadow-xs flex items-center justify-between font-bold text-xs text-amber-950 cursor-pointer"
+            class="px-3 py-3 bg-white border border-amber-300 hover:border-amber-500 rounded-2xl text-left transition shadow-xs flex items-center justify-between font-bold text-xs text-amber-950 cursor-pointer"
           >
             <span class="flex items-center gap-1.5">
-              <span>📋</span> 連絡用メッセージ
+              <span>📋</span> 連絡用文面
             </span>
             <span class="text-[11px] text-amber-600">
-              {isCopiedMessage.value ? 'コピー完了！' : 'コピー'}
+              {isCopiedMessage.value ? 'コピー済' : 'コピー'}
             </span>
           </button>
 
           <button
             type="button"
             onClick={copyShareUrl}
-            class="px-4 py-3 bg-white border border-amber-300 hover:border-amber-500 rounded-2xl text-left transition shadow-xs flex items-center justify-between font-bold text-xs text-amber-950 cursor-pointer"
+            class="px-3 py-3 bg-white border border-amber-300 hover:border-amber-500 rounded-2xl text-left transition shadow-xs flex items-center justify-between font-bold text-xs text-amber-950 cursor-pointer"
           >
             <span class="flex items-center gap-1.5">
               <span>🔗</span> 共有URL
             </span>
             <span class="text-[11px] text-amber-600">
-              {isCopiedShareUrl.value ? 'コピー完了！' : 'コピー'}
+              {isCopiedShareUrl.value ? 'コピー済' : 'コピー'}
             </span>
           </button>
         </div>
+
+        {/* 0. 日程確定パネル */}
+        {isConfirmOpen.value ? (
+          <div class="bg-white p-4 sm:p-5 rounded-2xl border border-amber-300 space-y-4 animate-fade-in shadow-xs">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-bold text-amber-950 flex items-center gap-1.5">
+                <span>🎉</span> 開催日時の決定・確定
+              </h3>
+              {props.event.confirmedSlotId ? (
+                <button
+                  type="button"
+                  disabled={isUpdating.value}
+                  onClick={() => handleConfirmSlot(null)}
+                  class="text-xs text-rose-600 hover:underline font-bold cursor-pointer"
+                >
+                  確定を取り消す
+                </button>
+              ) : null}
+            </div>
+            <p class="text-xs text-stone-600">
+              候補枠の中から開催を決定する日時を選択してください。確定するとイベント画面に「開催決定」のバナーが表示されます。
+            </p>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-64 overflow-y-auto p-1">
+              {props.event.slots.map((slot) => {
+                const isConfirmed = props.event.confirmedSlotId === slot.id
+                return (
+                  <button
+                    key={slot.id}
+                    type="button"
+                    disabled={isUpdating.value}
+                    onClick={() => handleConfirmSlot(isConfirmed ? null : slot.id)}
+                    class={`p-3 rounded-xl border text-left text-xs transition flex flex-col justify-between cursor-pointer ${
+                      isConfirmed
+                        ? 'bg-amber-500 text-white border-amber-600 shadow-sm ring-2 ring-amber-300 font-bold'
+                        : 'bg-stone-50 hover:bg-amber-50 border-stone-200 hover:border-amber-300 text-stone-800'
+                    }`}
+                  >
+                    <div class="font-bold">{formatDateLabel(slot.slotDate)}</div>
+                    <div class="text-sm font-mono mt-1">
+                      {slot.startTime}〜{slot.endTime}
+                    </div>
+                    <div class="text-[11px] mt-2 font-bold">
+                      {isConfirmed ? '✅ この日時に決定中（解除する）' : '👉 この日時に決定する'}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        ) : null}
 
         {/* 1. 日時・候補枠追加パネル */}
         {isAddSlotOpen.value ? (
@@ -354,6 +481,16 @@ ${shareUrl}
                   type="text"
                   value={editTitle.value}
                   onInput={(e: any) => (editTitle.value = e.target.value)}
+                  class="w-full border border-stone-300 rounded-xl px-3 py-2 text-sm outline-none font-medium"
+                />
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-stone-700 mb-1">主催者名</label>
+                <input
+                  type="text"
+                  value={editOrganizerName.value}
+                  onInput={(e: any) => (editOrganizerName.value = e.target.value)}
                   class="w-full border border-stone-300 rounded-xl px-3 py-2 text-sm outline-none font-medium"
                 />
               </div>
