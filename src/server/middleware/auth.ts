@@ -12,15 +12,50 @@ export type AuthBindings = {
   GITHUB_CLIENT_ID?: string
   GITHUB_CLIENT_SECRET?: string
   SESSION_SECRET?: string
+  ADMIN_GITHUB_USERNAMES?: string
+  ADMIN_GITHUB_IDS?: string
 }
 
 export type AuthVariables = {
   user: User | null
+  isAdmin?: boolean
 }
 
 export const SESSION_COOKIE_NAME = 'noton2_session'
 export const DEFAULT_SESSION_SECRET = 'noton2-default-development-secret-key-32chars'
 export const DEV_EXAMPLE_SECRET = 'local-development-session-secret-change-me-in-production'
+
+/**
+ * 環境変数 (ADMIN_GITHUB_USERNAMES / ADMIN_GITHUB_IDS) に基づき、
+ * 指定されたユーザーがシステム管理者かどうかを判定する。
+ * ハードコードを一切行わず、未設定時は常に false (フェイルセーフ) とする。
+ */
+export function isAdminUser(
+  user: User | null | undefined,
+  env?: Pick<AuthBindings, 'ADMIN_GITHUB_USERNAMES' | 'ADMIN_GITHUB_IDS'> | null
+): boolean {
+  if (!user || !env) return false
+
+  if (env.ADMIN_GITHUB_USERNAMES) {
+    const allowedUsernames = env.ADMIN_GITHUB_USERNAMES.split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean)
+    if (allowedUsernames.includes(user.username.toLowerCase())) {
+      return true
+    }
+  }
+
+  if (env.ADMIN_GITHUB_IDS) {
+    const allowedIds = env.ADMIN_GITHUB_IDS.split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+    if (allowedIds.includes(String(user.githubId)) || allowedIds.includes(user.id)) {
+      return true
+    }
+  }
+
+  return false
+}
 
 export function getSessionSecret(env: AuthBindings): string {
   const secret = env.SESSION_SECRET
@@ -48,12 +83,15 @@ export const authMiddleware = createMiddleware<{
     if (userId) {
       const user = await getUserById(c.env.DB, userId)
       c.set('user', user)
+      c.set('isAdmin', isAdminUser(user, c.env))
     } else {
       c.set('user', null)
+      c.set('isAdmin', false)
     }
   } catch (err) {
     // Cookie改ざんや破損時は未ログイン扱い
     c.set('user', null)
+    c.set('isAdmin', false)
   }
 
   await next()

@@ -134,3 +134,34 @@ export interface UserParticipatedEventSummary {
   slotCount: number
   participantCount: number
 }
+
+export interface AdminStats {
+  totalEvents: number
+  confirmedEvents: number
+  totalUsers: number
+  totalParticipants: number
+}
+
+export interface AdminEventSummary {
+  id: string
+  title: string
+  organizerName: string
+  creatorUserId: string | null
+  creatorUsername: string | null
+  confirmedSlotId: string | null
+  slotCount: number
+  participantCount: number
+  createdAt: string
+}
+
+export interface AdminUserSummary {
+  id: string
+  githubId: number
+  username: string
+  displayName: string | null
+  avatarUrl: string | null
+  profileUrl: string | null
+  createdEventCount: number
+  participatedEventCount: number
+  createdAt: string
+}

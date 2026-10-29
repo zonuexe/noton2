@@ -490,4 +490,84 @@ describe('server/api - 入力バリデーションと認可チェック', () => 
       expect(html).toContain('href="/mypage"')
     })
   })
+
+  describe('GET /admin (システム管理画面)', () => {
+    function createAdminTestApp(
+      mockUser: User | null,
+      envConfig: { ADMIN_GITHUB_USERNAMES?: string; ADMIN_GITHUB_IDS?: string } = {}
+    ) {
+      const app = new Hono<{ Bindings: any; Variables: { user: User | null } }>()
+      app.use('*', async (c, next) => {
+        c.set('user', mockUser)
+        c.env = {
+          ...envConfig,
+          DB: {
+            prepare: () => ({
+              first: async () => ({
+                total_events: 5,
+                confirmed_events: 2,
+                total_users: 3,
+                total_participants: 12,
+              }),
+              all: async () => ({ results: [], success: true }),
+            }),
+          } as any,
+        }
+        await next()
+      })
+      app.use('*', renderer)
+      app.route('/', pages)
+      return app
+    }
+
+    it('未ログイン時は /auth/github?returnTo=/admin へリダイレクトされること', async () => {
+      const app = createAdminTestApp(null, { ADMIN_GITHUB_USERNAMES: 'megurine' })
+      const res = await app.request('/admin')
+
+      expect(res.status).toBe(302)
+      expect(res.headers.get('location')).toBe('/auth/github?returnTo=/admin')
+    })
+
+    it('ログイン済みでも管理者リストに含まれない場合は 403 Forbidden を返すこと', async () => {
+      const normalUser: User = {
+        id: 'gh_2000',
+        githubId: 2000,
+        username: 'normal_user',
+        displayName: 'Normal User',
+        avatarUrl: 'https://avatars.githubusercontent.com/u/2000',
+        profileUrl: 'https://github.com/normal_user',
+        createdAt: '2026-10-29T10:00:00Z',
+        updatedAt: '2026-10-29T10:00:00Z',
+      }
+      const app = createAdminTestApp(normalUser, { ADMIN_GITHUB_USERNAMES: 'megurine' })
+      const res = await app.request('/admin')
+
+      expect(res.status).toBe(403)
+      const html = await res.text()
+      expect(html).toContain('管理者権限がありません')
+      // 非管理者のヘッダーには /admin リンクが出ないこと
+      expect(html).not.toContain('href="/admin"')
+    })
+
+    it('環境変数で許可された管理者の場合は 200 OK で管理画面が表示されること', async () => {
+      const adminUser: User = {
+        id: 'gh_1000',
+        githubId: 1000,
+        username: 'megurine',
+        displayName: 'Megurine Admin',
+        avatarUrl: 'https://avatars.githubusercontent.com/u/1000',
+        profileUrl: 'https://github.com/megurine',
+        createdAt: '2026-10-29T10:00:00Z',
+        updatedAt: '2026-10-29T10:00:00Z',
+      }
+      const app = createAdminTestApp(adminUser, { ADMIN_GITHUB_USERNAMES: 'megurine' })
+      const res = await app.request('/admin')
+
+      expect(res.status).toBe(200)
+      const html = await res.text()
+      expect(html).toContain('システム管理画面')
+      expect(html).toContain('@megurine')
+      expect(html).toContain('href="/admin"')
+    })
+  })
 })

@@ -4,12 +4,14 @@
 
 import { Hono } from 'hono'
 import {
+  deleteEventBySystemAdmin,
+  getAdminDashboardData,
   getEventById,
   getEventsByCreatorUserId,
   getParticipatedEventsByUserId,
 } from '../db/client'
-import { formatDateLabel } from '@/shared/time'
-import type { AuthBindings, AuthVariables } from '../middleware/auth'
+import { formatDateLabel, sanitizeHttpUrl } from '@/shared/time'
+import { isAdminUser, type AuthBindings, type AuthVariables } from '../middleware/auth'
 
 export const pages = new Hono<{
   Bindings: AuthBindings
@@ -406,6 +408,319 @@ pages.get('/mypage', async (c) => {
       title: 'マイページ - 作成したイベント一覧',
     }
   )
+})
+
+// システム管理者画面
+pages.get('/admin', async (c) => {
+  const user = c.get('user')
+  if (!user) {
+    return c.redirect('/auth/github?returnTo=/admin')
+  }
+
+  const isAdmin = Boolean(c.get('isAdmin') ?? isAdminUser(user, c.env))
+  if (!isAdmin) {
+    c.status(403)
+    return c.render(
+      <article class="bg-white p-8 rounded-2xl border border-rose-200 text-center max-w-md mx-auto my-12 space-y-4">
+        <div class="text-4xl" aria-hidden="true">🚫</div>
+        <h1 class="text-xl font-bold text-stone-800 font-['M_PLUS_Rounded_1c']">
+          管理者権限がありません
+        </h1>
+        <p class="text-sm text-stone-600">
+          このページはシステム管理者として許可されたGitHubアカウントのみアクセス可能です。
+        </p>
+        <a
+          href="/"
+          rel="home"
+          class="inline-block px-5 py-2 bg-rose-500 hover:bg-rose-600 text-white rounded-full text-sm font-bold"
+        >
+          トップへ戻る
+        </a>
+      </article>,
+      {
+        title: 'アクセス権限がありません',
+      }
+    )
+  }
+
+  const { stats, events, users } = await getAdminDashboardData(c.env.DB)
+  const isDeleted = c.req.query('deleted') === '1'
+
+  return c.render(
+    <div class="space-y-8 max-w-5xl mx-auto py-2">
+      {/* ヘッダー */}
+      <header class="bg-stone-900 text-white rounded-2xl p-6 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div class="space-y-1">
+          <div class="inline-flex items-center gap-1.5 text-xs font-bold text-amber-300 uppercase tracking-wider">
+            <span aria-hidden="true">🛠️</span>
+            <span>System Administration</span>
+          </div>
+          <h1 class="text-xl md:text-2xl font-extrabold font-['M_PLUS_Rounded_1c']">
+            noton2 システム管理画面
+          </h1>
+          <p class="text-xs text-stone-400">
+            管理者としてログイン中: <strong class="text-stone-200">@{user.username}</strong> (ID: {user.githubId})
+          </p>
+        </div>
+        <a
+          href="/mypage"
+          class="inline-flex items-center gap-1.5 px-4 py-2 bg-stone-800 hover:bg-stone-700 text-stone-200 rounded-xl text-xs font-bold border border-stone-700 transition self-start sm:self-auto"
+        >
+          <span>← マイページへ戻る</span>
+        </a>
+      </header>
+
+      {isDeleted ? (
+        <div
+          role="status"
+          class="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2"
+        >
+          <span aria-hidden="true">✅</span>
+          <span>指定されたイベントおよび関連する回答データを削除しました。</span>
+        </div>
+      ) : null}
+
+      {/* システム統計サマリー */}
+      <section aria-labelledby="admin-stats-heading" class="space-y-3">
+        <h2 id="admin-stats-heading" class="text-base font-bold text-stone-800 font-['M_PLUS_Rounded_1c'] px-1">
+          📊 システム統計サマリー
+        </h2>
+        <dl class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div class="bg-white p-5 rounded-2xl border border-stone-200 shadow-xs space-y-1">
+            <dt class="text-xs font-bold text-stone-500">総イベント数</dt>
+            <dd class="text-2xl md:text-3xl font-extrabold text-stone-900 font-['M_PLUS_Rounded_1c']">
+              <data value={stats.totalEvents}>{stats.totalEvents}</data>
+              <span class="text-xs font-normal text-stone-500 ml-1">件</span>
+            </dd>
+          </div>
+
+          <div class="bg-white p-5 rounded-2xl border border-stone-200 shadow-xs space-y-1">
+            <dt class="text-xs font-bold text-stone-500">開催確定済み</dt>
+            <dd class="text-2xl md:text-3xl font-extrabold text-emerald-600 font-['M_PLUS_Rounded_1c']">
+              <data value={stats.confirmedEvents}>{stats.confirmedEvents}</data>
+              <span class="text-xs font-normal text-stone-500 ml-1">件</span>
+            </dd>
+          </div>
+
+          <div class="bg-white p-5 rounded-2xl border border-stone-200 shadow-xs space-y-1">
+            <dt class="text-xs font-bold text-stone-500">登録ユーザー数</dt>
+            <dd class="text-2xl md:text-3xl font-extrabold text-rose-600 font-['M_PLUS_Rounded_1c']">
+              <data value={stats.totalUsers}>{stats.totalUsers}</data>
+              <span class="text-xs font-normal text-stone-500 ml-1">人</span>
+            </dd>
+          </div>
+
+          <div class="bg-white p-5 rounded-2xl border border-stone-200 shadow-xs space-y-1">
+            <dt class="text-xs font-bold text-stone-500">総回答者数</dt>
+            <dd class="text-2xl md:text-3xl font-extrabold text-sky-600 font-['M_PLUS_Rounded_1c']">
+              <data value={stats.totalParticipants}>{stats.totalParticipants}</data>
+              <span class="text-xs font-normal text-stone-500 ml-1">件</span>
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      {/* イベント一覧・管理 */}
+      <section aria-labelledby="admin-events-heading" class="space-y-3">
+        <div class="flex items-center justify-between px-1">
+          <h2 id="admin-events-heading" class="text-base font-bold text-stone-800 font-['M_PLUS_Rounded_1c']">
+            🗓️ 全イベント管理（最新100件）
+          </h2>
+          <span class="text-xs text-stone-500">{events.length} 件表示</span>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-stone-200 shadow-xs overflow-hidden">
+          {events.length === 0 ? (
+            <p class="p-8 text-center text-sm text-stone-500">登録されているイベントはありません。</p>
+          ) : (
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse text-xs sm:text-sm">
+                <thead>
+                  <tr class="bg-stone-50 border-b border-stone-200 text-stone-600 font-bold text-xs">
+                    <th scope="col" class="py-3 px-4">ステータス</th>
+                    <th scope="col" class="py-3 px-4">イベント名 / ID</th>
+                    <th scope="col" class="py-3 px-4">作成者 / 主催者</th>
+                    <th scope="col" class="py-3 px-4 text-right">枠 / 回答</th>
+                    <th scope="col" class="py-3 px-4">作成日時</th>
+                    <th scope="col" class="py-3 px-4 text-right">操作</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-stone-100">
+                  {events.map((ev) => (
+                    <tr key={ev.id} class="hover:bg-stone-50/80">
+                      <td class="py-3 px-4 whitespace-nowrap">
+                        {ev.confirmedSlotId ? (
+                          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
+                            確定済
+                          </span>
+                        ) : (
+                          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800">
+                            調整中
+                          </span>
+                        )}
+                      </td>
+                      <td class="py-3 px-4 max-w-xs">
+                        <a
+                          href={`/events/${ev.id}`}
+                          class="font-bold text-stone-900 hover:text-rose-600 hover:underline block truncate"
+                        >
+                          {ev.title}
+                        </a>
+                        <code class="text-[11px] text-stone-400 font-mono">{ev.id}</code>
+                      </td>
+                      <td class="py-3 px-4 whitespace-nowrap">
+                        <div class="font-medium text-stone-800">{ev.organizerName}</div>
+                        {ev.creatorUsername ? (
+                          <a
+                            href={`https://github.com/${encodeURIComponent(ev.creatorUsername)}`}
+                            target="_blank"
+                            rel="external noopener noreferrer"
+                            class="text-[11px] text-rose-600 hover:underline font-mono"
+                          >
+                            @{ev.creatorUsername}
+                          </a>
+                        ) : (
+                          <span class="text-[11px] text-stone-400">未連携</span>
+                        )}
+                      </td>
+                      <td class="py-3 px-4 text-right whitespace-nowrap font-mono text-xs">
+                        <span>{ev.slotCount}枠</span> / <strong>{ev.participantCount}人</strong>
+                      </td>
+                      <td class="py-3 px-4 whitespace-nowrap text-xs text-stone-500">
+                        <time datetime={ev.createdAt}>{ev.createdAt.slice(0, 16)}</time>
+                      </td>
+                      <td class="py-3 px-4 text-right whitespace-nowrap">
+                        <div class="inline-flex items-center gap-2">
+                          <a
+                            href={`/events/${ev.id}`}
+                            class="px-2.5 py-1 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-lg text-xs font-bold transition"
+                          >
+                            開く
+                          </a>
+                          <form
+                            method="post"
+                            action={`/admin/events/${ev.id}/delete`}
+                            class="inline m-0"
+                          >
+                            <button
+                              type="submit"
+                              class="px-2.5 py-1 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 rounded-lg text-xs font-bold transition cursor-pointer"
+                            >
+                              削除
+                            </button>
+                          </form>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* 登録ユーザー一覧 */}
+      <section aria-labelledby="admin-users-heading" class="space-y-3">
+        <div class="flex items-center justify-between px-1">
+          <h2 id="admin-users-heading" class="text-base font-bold text-stone-800 font-['M_PLUS_Rounded_1c']">
+            👥 登録GitHubユーザー一覧（最新100件）
+          </h2>
+          <span class="text-xs text-stone-500">{users.length} 人表示</span>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-stone-200 shadow-xs overflow-hidden">
+          {users.length === 0 ? (
+            <p class="p-8 text-center text-sm text-stone-500">登録されているユーザーはいません。</p>
+          ) : (
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse text-xs sm:text-sm">
+                <thead>
+                  <tr class="bg-stone-50 border-b border-stone-200 text-stone-600 font-bold text-xs">
+                    <th scope="col" class="py-3 px-4">ユーザー</th>
+                    <th scope="col" class="py-3 px-4">GitHub ID</th>
+                    <th scope="col" class="py-3 px-4 text-right">作成イベント</th>
+                    <th scope="col" class="py-3 px-4 text-right">回答イベント</th>
+                    <th scope="col" class="py-3 px-4">初回ログイン日時</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-stone-100">
+                  {users.map((u) => {
+                    const safeAvatar = sanitizeHttpUrl(u.avatarUrl)
+                    const safeProfile =
+                      sanitizeHttpUrl(u.profileUrl) ||
+                      `https://github.com/${encodeURIComponent(u.username)}`
+
+                    return (
+                      <tr key={u.id} class="h-card hover:bg-stone-50/80">
+                        <td class="py-3 px-4 whitespace-nowrap">
+                          <div class="flex items-center gap-2.5">
+                            {safeAvatar ? (
+                              <img
+                                src={safeAvatar}
+                                alt=""
+                                aria-hidden="true"
+                                class="u-photo w-7 h-7 rounded-full border border-stone-200"
+                              />
+                            ) : (
+                              <span class="w-7 h-7 rounded-full bg-stone-100 flex items-center justify-center text-xs">
+                                👤
+                              </span>
+                            )}
+                            <div>
+                              <div class="p-name font-bold text-stone-900">
+                                {u.displayName || u.username}
+                              </div>
+                              <a
+                                href={safeProfile}
+                                target="_blank"
+                                rel="external noopener noreferrer"
+                                class="u-url p-nickname text-[11px] text-rose-600 hover:underline font-mono"
+                              >
+                                @{u.username} ↗
+                              </a>
+                            </div>
+                          </div>
+                        </td>
+                        <td class="py-3 px-4 whitespace-nowrap font-mono text-xs text-stone-500">
+                          {u.githubId}
+                        </td>
+                        <td class="py-3 px-4 text-right whitespace-nowrap font-mono text-xs">
+                          <strong>{u.createdEventCount}</strong> 件
+                        </td>
+                        <td class="py-3 px-4 text-right whitespace-nowrap font-mono text-xs">
+                          <strong>{u.participatedEventCount}</strong> 件
+                        </td>
+                        <td class="py-3 px-4 whitespace-nowrap text-xs text-stone-500">
+                          <time datetime={u.createdAt}>{u.createdAt.slice(0, 16)}</time>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
+    </div>,
+    {
+      title: 'システム管理画面',
+    }
+  )
+})
+
+// システム管理者によるイベント強制削除
+pages.post('/admin/events/:id/delete', async (c) => {
+  const user = c.get('user')
+  const isAdmin = Boolean(c.get('isAdmin') ?? isAdminUser(user, c.env))
+  if (!user || !isAdmin) {
+    return c.text('Forbidden', 403)
+  }
+
+  const eventId = c.req.param('id')
+  await deleteEventBySystemAdmin(c.env.DB, eventId)
+  return c.redirect('/admin?deleted=1')
 })
 
 // イベント詳細・回答ページ

@@ -8,3 +8,8 @@ GITHUB_CLIENT_SECRET=
 
 # Secret key used to sign session cookies (at least 32 characters recommended)
 SESSION_SECRET=local-development-session-secret-change-me-in-production
+
+# System administrator GitHub accounts (comma-separated usernames or numeric GitHub IDs)
+# Example: ADMIN_GITHUB_USERNAMES=zonuexe
+ADMIN_GITHUB_USERNAMES=
+ADMIN_GITHUB_IDS=

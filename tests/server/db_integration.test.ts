@@ -21,6 +21,8 @@ import {
   deleteEvent,
   getEventsByCreatorUserId,
   getParticipatedEventsByUserId,
+  getAdminDashboardData,
+  deleteEventBySystemAdmin,
 } from '@/server/db/client'
 
 /**
@@ -582,5 +584,65 @@ describe('server/db/client - 実 SQLite (schema.sql) を用いた統合テスト
     )
     expect(deletedByOwner).toBe(true)
     expect(await getParticipatedEventsByUserId(db, responderB.id)).toHaveLength(0)
+  })
+
+  it('システム管理者用: ダッシュボードデータの集計と強制削除ができること', async () => {
+    const u1 = await upsertUser(db, {
+      githubId: 80001,
+      username: 'admin_test_user',
+      displayName: '管理者テスト',
+      avatarUrl: 'https://avatars.githubusercontent.com/u/80001',
+      profileUrl: 'https://github.com/admin_test_user',
+    })
+
+    const ev1 = await createEvent(
+      db,
+      {
+        title: '管理画面テストイベント1',
+        organizerName: '主催A',
+        slots: [{ slotDate: '2026-12-01', startTime: '10:00', endTime: '11:00' }],
+      },
+      u1.id
+    )
+
+    const ev2 = await createEvent(
+      db,
+      {
+        title: '管理画面テストイベント2（削除対象）',
+        organizerName: '主催B',
+        slots: [{ slotDate: '2026-12-02', startTime: '13:00', endTime: '14:00' }],
+      },
+      u1.id
+    )
+
+    await submitResponse(
+      db,
+      ev1.id,
+      {
+        name: '回答者テスト',
+        answers: [],
+      },
+      u1.id
+    )
+
+    const dashboard = await getAdminDashboardData(db)
+    expect(dashboard.stats.totalEvents).toBe(2)
+    expect(dashboard.stats.confirmedEvents).toBe(0)
+    expect(dashboard.stats.totalUsers).toBe(1)
+    expect(dashboard.stats.totalParticipants).toBe(1)
+    expect(dashboard.events).toHaveLength(2)
+    expect(dashboard.users).toHaveLength(1)
+    expect(dashboard.users[0].username).toBe('admin_test_user')
+    expect(dashboard.users[0].createdEventCount).toBe(2)
+    expect(dashboard.users[0].participatedEventCount).toBe(1)
+
+    // 管理者によるイベント強制削除（adminToken 不要）
+    const deleted = await deleteEventBySystemAdmin(db, ev2.id)
+    expect(deleted).toBe(true)
+    expect(await getEventById(db, ev2.id)).toBeNull()
+
+    // 存在しないイベントの削除は false を返す
+    const deletedAgain = await deleteEventBySystemAdmin(db, ev2.id)
+    expect(deletedAgain).toBe(false)
   })
 })

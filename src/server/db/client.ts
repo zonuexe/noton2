@@ -3,6 +3,9 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import type {
+  AdminEventSummary,
+  AdminStats,
+  AdminUserSummary,
   CreateEventInput,
   CreatorProfile,
   EventDetail,
@@ -957,5 +960,126 @@ export async function getParticipatedEventsByUserId(
     slotCount: Number(row.slot_count || 0),
     participantCount: Number(row.participant_count || 0),
   }))
+}
+
+export async function getAdminDashboardData(db: D1Database): Promise<{
+  stats: AdminStats
+  events: AdminEventSummary[]
+  users: AdminUserSummary[]
+}> {
+  const statsRow = await db
+    .prepare(
+      `SELECT
+        (SELECT COUNT(*) FROM events) as total_events,
+        (SELECT COUNT(*) FROM events WHERE confirmed_slot_id IS NOT NULL) as confirmed_events,
+        (SELECT COUNT(*) FROM users) as total_users,
+        (SELECT COUNT(*) FROM participants) as total_participants`
+    )
+    .first<{
+      total_events: number
+      confirmed_events: number
+      total_users: number
+      total_participants: number
+    }>()
+
+  interface AdminEventRow {
+    id: string
+    title: string
+    organizer_name: string
+    creator_user_id: string | null
+    creator_username: string | null
+    confirmed_slot_id: string | null
+    slot_count: number
+    participant_count: number
+    created_at: string
+  }
+
+  const eventsRes = await db
+    .prepare(
+      `SELECT
+        e.id,
+        e.title,
+        e.organizer_name,
+        e.creator_user_id,
+        u.username as creator_username,
+        e.confirmed_slot_id,
+        (SELECT COUNT(*) FROM time_slots WHERE event_id = e.id) as slot_count,
+        (SELECT COUNT(*) FROM participants WHERE event_id = e.id) as participant_count,
+        e.created_at
+      FROM events e
+      LEFT JOIN users u ON e.creator_user_id = u.id
+      ORDER BY e.created_at DESC, e.rowid DESC
+      LIMIT 100`
+    )
+    .all<AdminEventRow>()
+
+  interface AdminUserRow {
+    id: string
+    github_id: number
+    username: string
+    display_name: string | null
+    avatar_url: string | null
+    profile_url: string | null
+    created_event_count: number
+    participated_event_count: number
+    created_at: string
+  }
+
+  const usersRes = await db
+    .prepare(
+      `SELECT
+        u.id,
+        u.github_id,
+        u.username,
+        u.display_name,
+        u.avatar_url,
+        u.profile_url,
+        (SELECT COUNT(*) FROM events WHERE creator_user_id = u.id) as created_event_count,
+        (SELECT COUNT(*) FROM participants WHERE user_id = u.id) as participated_event_count,
+        u.created_at
+      FROM users u
+      ORDER BY u.created_at DESC, u.rowid DESC
+      LIMIT 100`
+    )
+    .all<AdminUserRow>()
+
+  return {
+    stats: {
+      totalEvents: Number(statsRow?.total_events || 0),
+      confirmedEvents: Number(statsRow?.confirmed_events || 0),
+      totalUsers: Number(statsRow?.total_users || 0),
+      totalParticipants: Number(statsRow?.total_participants || 0),
+    },
+    events: (eventsRes.results || []).map((row) => ({
+      id: row.id,
+      title: row.title,
+      organizerName: row.organizer_name,
+      creatorUserId: row.creator_user_id,
+      creatorUsername: row.creator_username,
+      confirmedSlotId: row.confirmed_slot_id,
+      slotCount: Number(row.slot_count || 0),
+      participantCount: Number(row.participant_count || 0),
+      createdAt: row.created_at,
+    })),
+    users: (usersRes.results || []).map((row) => ({
+      id: row.id,
+      githubId: Number(row.github_id),
+      username: row.username,
+      displayName: row.display_name,
+      avatarUrl: row.avatar_url,
+      profileUrl: row.profile_url,
+      createdEventCount: Number(row.created_event_count || 0),
+      participatedEventCount: Number(row.participated_event_count || 0),
+      createdAt: row.created_at,
+    })),
+  }
+}
+
+export async function deleteEventBySystemAdmin(
+  db: D1Database,
+  eventId: string
+): Promise<boolean> {
+  const result = await db.prepare(`DELETE FROM events WHERE id = ?`).bind(eventId).run()
+  return result.meta.changes > 0
 }
 

@@ -4,6 +4,7 @@
 
 import { jsxRenderer } from 'hono/jsx-renderer'
 import type { User } from '@/shared/types'
+import { isAdminUser, type AuthBindings } from './middleware/auth'
 
 interface LayoutProps {
   title?: string
@@ -20,6 +21,7 @@ declare module 'hono' {
 
 export const renderer = jsxRenderer(({ children, title, description, ogImage, ogUrl }, c) => {
   const user = c.get('user') as User | null
+  const isAdmin = Boolean(c.get('isAdmin') ?? isAdminUser(user, c.env as Partial<AuthBindings>))
   const pageTitle = title ? `${title} | noton2` : 'noton2 - ログイン不要の超高速日程調整ツール'
   const pageDescription =
     description || 'Cloudflare で完結する超高速日程調整Webアプリ。カレンダーから時間枠を選ぶだけで直感的に日程を調整できます。'
@@ -122,6 +124,16 @@ export const renderer = jsxRenderer(({ children, title, description, ogImage, og
                         @{user.username}
                       </span>
                     </a>
+                    {isAdmin ? (
+                      <a
+                        href="/admin"
+                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-stone-900 hover:bg-stone-700 text-white text-[11px] font-bold transition"
+                        title="システム管理画面"
+                      >
+                        <span aria-hidden="true">🛠️</span>
+                        <span>管理</span>
+                      </a>
+                    ) : null}
                     <form method="post" action="/auth/logout" class="inline m-0">
                       <button
                         type="submit"

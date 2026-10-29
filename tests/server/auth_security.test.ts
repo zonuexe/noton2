@@ -7,6 +7,7 @@ import { sanitizeReturnTo } from '@/server/routes/auth'
 import { getEventById } from '@/server/db/client'
 import {
   getSessionSecret,
+  isAdminUser,
   DEFAULT_SESSION_SECRET,
   DEV_EXAMPLE_SECRET,
 } from '@/server/middleware/auth'
@@ -130,6 +131,40 @@ describe('server/auth - セキュリティと情報漏洩防止', () => {
       const custom = 'my-custom-dev-secret-key-12345678'
       const secret = getSessionSecret({ DB: {} as any, SESSION_SECRET: custom })
       expect(secret).toBe(custom)
+    })
+  })
+
+  describe('isAdminUser: 環境変数によるシステム管理者判定の検証', () => {
+    const sampleUser = {
+      id: 'gh_12345',
+      githubId: 12345,
+      username: 'ZonuExe',
+      displayName: 'Zonu',
+      createdAt: '2026-10-30T00:00:00Z',
+      updatedAt: '2026-10-30T00:00:00Z',
+    }
+
+    it('未ログイン (null) または環境変数未設定の場合は常に false を返すこと', () => {
+      expect(isAdminUser(null, { ADMIN_GITHUB_USERNAMES: 'zonuexe' })).toBe(false)
+      expect(isAdminUser(sampleUser, {})).toBe(false)
+      expect(isAdminUser(sampleUser, { ADMIN_GITHUB_USERNAMES: '', ADMIN_GITHUB_IDS: '' })).toBe(
+        false
+      )
+    })
+
+    it('ADMIN_GITHUB_USERNAMES に一致する場合（大文字小文字無視・カンマ区切り）は true を返すこと', () => {
+      expect(isAdminUser(sampleUser, { ADMIN_GITHUB_USERNAMES: 'zonuexe' })).toBe(true)
+      expect(isAdminUser(sampleUser, { ADMIN_GITHUB_USERNAMES: 'other, zonuexe , admin2' })).toBe(
+        true
+      )
+      expect(isAdminUser(sampleUser, { ADMIN_GITHUB_USERNAMES: 'someone_else' })).toBe(false)
+    })
+
+    it('ADMIN_GITHUB_IDS に数値IDまたはユーザーIDが一致する場合は true を返すこと', () => {
+      expect(isAdminUser(sampleUser, { ADMIN_GITHUB_IDS: '12345' })).toBe(true)
+      expect(isAdminUser(sampleUser, { ADMIN_GITHUB_IDS: '99999, 12345' })).toBe(true)
+      expect(isAdminUser(sampleUser, { ADMIN_GITHUB_IDS: 'gh_12345' })).toBe(true)
+      expect(isAdminUser(sampleUser, { ADMIN_GITHUB_IDS: '99999' })).toBe(false)
     })
   })
 })
