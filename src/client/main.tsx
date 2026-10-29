@@ -28,7 +28,15 @@ function mountIslands() {
   if (detailEl && detailEl.dataset.event) {
     try {
       const initialEvent: EventDetail = JSON.parse(detailEl.dataset.event)
-      createVaporApp(EventDetailApp, { initialEvent }).mount(detailEl)
+      let initialUser: User | null = null
+      if (detailEl.dataset.user) {
+        try {
+          initialUser = JSON.parse(detailEl.dataset.user)
+        } catch (e) {
+          console.error('Failed to parse initial user data on detail island:', e)
+        }
+      }
+      createVaporApp(EventDetailApp, { initialEvent, initialUser }).mount(detailEl)
     } catch (e) {
       console.error('Failed to parse initial event data from data-event attribute:', e)
     }

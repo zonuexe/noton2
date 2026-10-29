@@ -11,6 +11,7 @@ import type {
   TimeSlot,
   User,
   UserCreatedEventSummary,
+  UserParticipatedEventSummary,
 } from '@/shared/types'
 import { compareSlots } from '@/shared/time'
 
@@ -299,23 +300,33 @@ export async function getEventById(
     }))
     .sort(compareSlots)
 
-  // 参加者取得
+  // 参加者取得 (回答者に紐付くGitHubユーザー情報も合わせて取得)
   const participantRows = await db
     .prepare(
-      `SELECT id, event_id, name, comment, edit_token, created_at, updated_at
-       FROM participants
-       WHERE event_id = ?
-       ORDER BY created_at ASC`
+      `SELECT
+         p.id, p.event_id, p.user_id, p.name, p.comment, p.edit_token, p.created_at, p.updated_at,
+         u.id as u_id, u.username as u_username, u.display_name as u_display_name,
+         u.avatar_url as u_avatar_url, u.profile_url as u_profile_url
+       FROM participants p
+       LEFT JOIN users u ON p.user_id = u.id
+       WHERE p.event_id = ?
+       ORDER BY p.created_at ASC`
     )
     .bind(eventId)
     .all<{
       id: string
       event_id: string
+      user_id: string | null
       name: string
       comment: string | null
       edit_token: string
       created_at: string
       updated_at: string
+      u_id: string | null
+      u_username: string | null
+      u_display_name: string | null
+      u_avatar_url: string | null
+      u_profile_url: string | null
     }>()
 
   // 各参加者の回答取得
@@ -341,16 +352,31 @@ export async function getEventById(
     answersByParticipant[ans.participant_id][ans.slot_id] = ans.status
   }
 
-  const participants: Participant[] = (participantRows.results || []).map((p) => ({
-    id: p.id,
-    eventId: p.event_id,
-    name: p.name,
-    comment: p.comment,
-    createdAt: p.created_at,
-    updatedAt: p.updated_at,
-    answers: answersByParticipant[p.id] || {},
-    editToken: isOrganizer ? p.edit_token : undefined,
-  }))
+  const participants: Participant[] = (participantRows.results || []).map((p) => {
+    const isOwnerParticipant = Boolean(currentUserId && p.user_id && p.user_id === currentUserId)
+    const userProfile: CreatorProfile | null = p.u_id
+      ? {
+          id: p.u_id,
+          username: p.u_username || '',
+          displayName: p.u_display_name,
+          avatarUrl: p.u_avatar_url,
+          profileUrl: p.u_profile_url,
+        }
+      : null
+
+    return {
+      id: p.id,
+      eventId: p.event_id,
+      userId: p.user_id || null,
+      user: userProfile,
+      name: p.name,
+      comment: p.comment,
+      createdAt: p.created_at,
+      updatedAt: p.updated_at,
+      answers: answersByParticipant[p.id] || {},
+      editToken: isOrganizer || isOwnerParticipant ? p.edit_token : undefined,
+    }
+  })
 
   const creator: CreatorProfile | null = eventRow.u_id
     ? {
@@ -583,8 +609,9 @@ export async function updateEventDetails(
 export async function submitResponse(
   db: D1Database,
   eventId: string,
-  input: SubmitResponseInput
-): Promise<{ participantId: string; editToken: string }> {
+  input: SubmitResponseInput,
+  currentUserId?: string | null
+): Promise<{ participantId: string; editToken: string; userId: string | null }> {
   // イベントの存在確認
   const eventExists = await db
     .prepare(`SELECT id FROM events WHERE id = ?`)
@@ -604,27 +631,42 @@ export async function submitResponse(
 
   let participantId = input.participantId
   let editToken = input.editToken
+  let nextUserId: string | null = currentUserId || null
   const statements: D1PreparedStatement[] = []
 
-  if (participantId && editToken) {
-    // 既存回答の更新: 認証確認
+  if (participantId) {
+    // 既存回答の更新: editToken 一致 または 本人ログイン (user_id === currentUserId) を検証
     const existing = await db
-      .prepare(`SELECT id FROM participants WHERE id = ? AND event_id = ? AND edit_token = ?`)
-      .bind(participantId, eventId, editToken)
-      .first()
+      .prepare(`SELECT id, user_id, edit_token FROM participants WHERE id = ? AND event_id = ?`)
+      .bind(participantId, eventId)
+      .first<{ id: string; user_id: string | null; edit_token: string }>()
 
-    if (!existing) {
+    const isTokenValid = Boolean(editToken && existing && existing.edit_token === editToken)
+    const isUserOwner = Boolean(
+      currentUserId && existing && existing.user_id && existing.user_id === currentUserId
+    )
+
+    if (!existing || (!isTokenValid && !isUserOwner)) {
       throw new Error('編集権限がありません')
     }
+
+    // すでに別のアカウントに紐付いている回答を、別ユーザーが editToken 経由で自身のアカウントに上書き・乗っ取ることを防止
+    if (existing.user_id && currentUserId && existing.user_id !== currentUserId) {
+      throw new Error('この回答は別のアカウントに紐付いています')
+    }
+
+    // 既存の user_id があれば維持し、未ログイン回答だった場合は今回ログイン中の currentUserId を紐付ける
+    nextUserId = existing.user_id || currentUserId || null
+    editToken = existing.edit_token
 
     statements.push(
       db
         .prepare(
           `UPDATE participants
-           SET name = ?, comment = ?, updated_at = datetime('now')
+           SET name = ?, comment = ?, user_id = ?, updated_at = datetime('now')
            WHERE id = ?`
         )
-        .bind(input.name.trim(), input.comment?.trim() || null, participantId)
+        .bind(input.name.trim(), input.comment?.trim() || null, nextUserId, participantId)
     )
 
     // 既存回答削除
@@ -645,14 +687,22 @@ export async function submitResponse(
     // 新規参加者作成
     participantId = generateShortId(10)
     editToken = generateToken()
+    nextUserId = currentUserId || null
 
     statements.push(
       db
         .prepare(
-          `INSERT INTO participants (id, event_id, name, comment, edit_token)
-           VALUES (?, ?, ?, ?, ?)`
+          `INSERT INTO participants (id, event_id, user_id, name, comment, edit_token)
+           VALUES (?, ?, ?, ?, ?, ?)`
         )
-        .bind(participantId, eventId, input.name.trim(), input.comment?.trim() || null, editToken)
+        .bind(
+          participantId,
+          eventId,
+          nextUserId,
+          input.name.trim(),
+          input.comment?.trim() || null,
+          editToken
+        )
     )
   }
 
@@ -689,7 +739,7 @@ export async function submitResponse(
     await db.batch(statements)
   }
 
-  return { participantId, editToken }
+  return { participantId, editToken, userId: nextUserId }
 }
 
 export async function confirmSlot(
@@ -767,9 +817,17 @@ export async function deleteParticipant(
     query = `DELETE FROM participants WHERE id = ? AND event_id = ?`
     const res = await db.prepare(query).bind(participantId, eventId).run()
     return res.meta.changes > 0
+  } else if (token && currentUserId) {
+    query = `DELETE FROM participants WHERE id = ? AND event_id = ? AND (edit_token = ? OR user_id = ?)`
+    const res = await db.prepare(query).bind(participantId, eventId, token, currentUserId).run()
+    return res.meta.changes > 0
   } else if (token) {
     query = `DELETE FROM participants WHERE id = ? AND event_id = ? AND edit_token = ?`
     const res = await db.prepare(query).bind(participantId, eventId, token).run()
+    return res.meta.changes > 0
+  } else if (currentUserId) {
+    query = `DELETE FROM participants WHERE id = ? AND event_id = ? AND user_id = ?`
+    const res = await db.prepare(query).bind(participantId, eventId, currentUserId).run()
     return res.meta.changes > 0
   }
   return false
@@ -831,6 +889,71 @@ export async function getEventsByCreatorUserId(
     confirmedDateTitle: row.confirmed_date_title,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    slotCount: Number(row.slot_count || 0),
+    participantCount: Number(row.participant_count || 0),
+  }))
+}
+
+export async function getParticipatedEventsByUserId(
+  db: D1Database,
+  userId: string
+): Promise<UserParticipatedEventSummary[]> {
+  interface ParticipatedRow {
+    id: string
+    title: string
+    description: string | null
+    organizer_name: string
+    confirmed_slot_id: string | null
+    confirmed_slot_date: string | null
+    confirmed_start_time: string | null
+    confirmed_end_time: string | null
+    confirmed_date_title: string | null
+    participant_id: string
+    participant_name: string
+    responded_at: string
+    slot_count: number
+    participant_count: number
+  }
+
+  const { results } = await db
+    .prepare(
+      `SELECT
+        e.id,
+        e.title,
+        e.description,
+        e.organizer_name,
+        e.confirmed_slot_id,
+        ts.slot_date as confirmed_slot_date,
+        ts.start_time as confirmed_start_time,
+        ts.end_time as confirmed_end_time,
+        ts.date_title as confirmed_date_title,
+        p.id as participant_id,
+        p.name as participant_name,
+        p.updated_at as responded_at,
+        (SELECT COUNT(*) FROM time_slots WHERE event_id = e.id) as slot_count,
+        (SELECT COUNT(*) FROM participants WHERE event_id = e.id) as participant_count
+      FROM participants p
+      JOIN events e ON p.event_id = e.id
+      LEFT JOIN time_slots ts ON e.confirmed_slot_id = ts.id
+      WHERE p.user_id = ?
+      ORDER BY p.updated_at DESC, p.rowid DESC`
+    )
+    .bind(userId)
+    .all<ParticipatedRow>()
+
+  return (results || []).map((row) => ({
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    organizerName: row.organizer_name,
+    confirmedSlotId: row.confirmed_slot_id,
+    confirmedSlotDate: row.confirmed_slot_date,
+    confirmedStartTime: row.confirmed_start_time,
+    confirmedEndTime: row.confirmed_end_time,
+    confirmedDateTitle: row.confirmed_date_title,
+    participantId: row.participant_id,
+    participantName: row.participant_name,
+    respondedAt: row.responded_at,
     slotCount: Number(row.slot_count || 0),
     participantCount: Number(row.participant_count || 0),
   }))

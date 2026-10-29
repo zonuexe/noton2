@@ -3,8 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import { defineVaporComponent, computed, ref, onMounted, onUnmounted } from 'vue'
-import type { AnswerStatus, EventDetail } from '@/shared/types'
-import { TIMELINE_HOURS, formatDateLabel, getSlotsForHour } from '@/shared/time'
+import type { AnswerStatus, EventDetail, User } from '@/shared/types'
+import { TIMELINE_HOURS, formatDateLabel, getSlotsForHour, sanitizeHttpUrl } from '@/shared/time'
 import { calculateSlotSummary, isSlotConfirmed } from '@/shared/state'
 
 export const MatrixTable = defineVaporComponent({
@@ -12,6 +12,10 @@ export const MatrixTable = defineVaporComponent({
     event: {
       type: Object as () => EventDetail,
       required: true,
+    },
+    currentUser: {
+      type: Object as () => User | null,
+      default: null,
     },
     adminToken: {
       type: String,
@@ -60,10 +64,13 @@ export const MatrixTable = defineVaporComponent({
 
       isDeleting.value = true
       try {
-        const isMe = storedResponse.value?.participantId === participantId
+        const target = props.event.participants.find((p) => p.id === participantId)
+        const isMe =
+          storedResponse.value?.participantId === participantId ||
+          Boolean(props.currentUser && target?.userId && target.userId === props.currentUser.id)
         const token =
           (isOrganizer.value && props.adminToken) ||
-          (isMe ? storedResponse.value?.editToken : '') ||
+          (isMe ? storedResponse.value?.editToken || target?.editToken : '') ||
           ''
 
         const res = await fetch(
@@ -252,33 +259,57 @@ export const MatrixTable = defineVaporComponent({
 
                         {/* 2行目以降: 各参加者の回答行 */}
                         {props.event.participants.map((p) => {
-                          const isMe = storedResponse.value?.participantId === p.id
+                          const isMe =
+                            storedResponse.value?.participantId === p.id ||
+                            Boolean(props.currentUser && p.userId && p.userId === props.currentUser.id)
                           const canDelete =
-                            isOrganizer.value || (isMe && Boolean(storedResponse.value?.editToken))
+                            isOrganizer.value ||
+                            (storedResponse.value?.participantId === p.id &&
+                              Boolean(storedResponse.value?.editToken)) ||
+                            Boolean(props.currentUser && p.userId && p.userId === props.currentUser.id)
+                          const avatarUrl = sanitizeHttpUrl(p.user?.avatarUrl)
 
                           return (
                             <div key={p.id} class="flex items-center gap-2">
                               {/* 左側: メンバー名ボックス */}
-                              <div class="w-28 sm:w-32 md:w-36 shrink-0 h-6 sm:h-7 border border-stone-300 rounded bg-white px-2 py-0.5 text-xs text-stone-800 flex items-center justify-between">
-                                {isMe ? (
-                                  <button
-                                    type="button"
-                                    onClick={scrollToAnswerForm}
-                                    class="text-left truncate cursor-pointer underline text-sky-700 font-extrabold"
-                                    title="あなたの予定（タップして編集）"
-                                  >
-                                    {p.name}
-                                  </button>
-                                ) : (
-                                  <span class="truncate text-stone-700 font-medium" title={p.name}>
-                                    {p.name}
-                                  </span>
-                                )}
+                              <div class="h-card w-28 sm:w-32 md:w-36 shrink-0 h-6 sm:h-7 border border-stone-300 rounded bg-white px-2 py-0.5 text-xs text-stone-800 flex items-center justify-between gap-1">
+                                <div class="flex items-center gap-1 min-w-0 flex-1">
+                                  {avatarUrl ? (
+                                    <img
+                                      src={avatarUrl}
+                                      alt=""
+                                      aria-hidden="true"
+                                      class="u-photo w-3.5 h-3.5 rounded-full shrink-0 border border-stone-200"
+                                      title={p.user ? `@${p.user.username}` : undefined}
+                                    />
+                                  ) : null}
+                                  {isMe ? (
+                                    <button
+                                      type="button"
+                                      onClick={scrollToAnswerForm}
+                                      class="p-name text-left truncate cursor-pointer underline text-sky-700 font-extrabold"
+                                      title={
+                                        p.user
+                                          ? `あなたの予定 (@${p.user.username}・タップして編集)`
+                                          : 'あなたの予定（タップして編集）'
+                                      }
+                                    >
+                                      {p.name}
+                                    </button>
+                                  ) : (
+                                    <span
+                                      class="p-name truncate text-stone-700 font-medium"
+                                      title={p.user ? `${p.name} (@${p.user.username})` : p.name}
+                                    >
+                                      {p.name}
+                                    </span>
+                                  )}
+                                </div>
                                 {canDelete ? (
                                   <button
                                     type="button"
                                     onClick={() => handleDeleteParticipant(p.id)}
-                                    class="text-stone-300 hover:text-rose-500 text-xs font-bold p-0.5 cursor-pointer ml-1"
+                                    class="text-stone-300 hover:text-rose-500 text-xs font-bold p-0.5 cursor-pointer ml-1 shrink-0"
                                     title="回答を削除"
                                   >
                                     ✕

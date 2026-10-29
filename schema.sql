@@ -52,15 +52,18 @@ CREATE INDEX IF NOT EXISTS idx_time_slots_event ON time_slots(event_id, slot_dat
 CREATE TABLE IF NOT EXISTS participants (
     id TEXT PRIMARY KEY,
     event_id TEXT NOT NULL,
+    user_id TEXT,                              -- 回答者のGitHubユーザーID (未ログイン回答時はNULL、再提出時に紐付け可能)
     name TEXT NOT NULL,
     comment TEXT,
     edit_token TEXT NOT NULL,
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE
+    FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_participants_event ON participants(event_id);
+CREATE INDEX IF NOT EXISTS idx_participants_user ON participants(user_id);
 
 -- slot_answers table (コマごとの回答)
 CREATE TABLE IF NOT EXISTS slot_answers (

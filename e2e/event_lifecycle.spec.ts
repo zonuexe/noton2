@@ -46,6 +46,7 @@ test.describe('イベントライフサイクルと回答登録のE2Eテスト',
 
     // 7. 生成されたイベント詳細画面 (/events/:id) へ遷移したことを確認
     await expect(page).toHaveURL(/\/events\/[a-z0-9]+/)
+    const eventUrl = new URL(page.url()).pathname
     await expect(page.getByRole('heading', { name: uniqueTitle })).toBeVisible()
     await expect(page.getByText('主催者Dev')).toBeVisible()
 
@@ -55,7 +56,11 @@ test.describe('イベントライフサイクルと回答登録のE2Eテスト',
     // 集計表および回答フォームに日程名「前夜祭」が表示されていることを検証
     await expect(page.getByText('前夜祭').first()).toBeVisible()
 
-    // 7. 回答フォームへスクロール & 参加者名入力
+    // 7-1. 未ログインでの回答と後からログインして再提出による紐付けを検証するため一旦ログアウト
+    await page.getByRole('button', { name: 'ログアウト' }).click()
+    await page.goto(eventUrl)
+
+    // 7-2. 回答フォームへスクロール & 参加者名入力 (未ログイン状態)
     const answerForm = page.locator('#answer-form-section')
     await expect(answerForm).toBeVisible()
 
@@ -84,12 +89,23 @@ test.describe('イベントライフサイクルと回答登録のE2Eテスト',
     await firstCell.click()
     await expect(firstCell).toHaveText('×')
 
-    // 9. 「予定を登録する」ボタンをクリックして送信
+    // 9. 「予定を登録する」ボタンをクリックして未ログイン状態で送信
     const submitResponseButton = answerForm.getByRole('button', { name: /予定を登録する/ })
     await submitResponseButton.click()
 
-    // 10. 送信完了後、フォームが「回答を編集する」状態に切り替わることを確認
+    // 10. 送信完了後、フォームが「回答を編集する」状態に切り替わり、未ログイン用の紐付け案内リンクが出ることを確認
     await expect(answerForm.getByRole('heading', { name: /回答を編集する/ })).toBeVisible()
+    await expect(answerForm.getByRole('link', { name: /ログインしてアカウントに紐付ける/ })).toBeVisible()
+
+    // 10-1. ログインしてイベント画面へ戻り、再提出によって既存回答をアカウントに紐付ける
+    await page.goto(`/auth/dev-login?returnTo=${encodeURIComponent(eventUrl)}`)
+    await expect(page).toHaveURL(new RegExp(eventUrl))
+
+    const linkNowButton = answerForm.getByRole('button', { name: '今すぐ紐付けて更新' })
+    await expect(linkNowButton).toBeVisible()
+    await linkNowButton.click()
+
+    await expect(answerForm.getByText(/@dev-user に紐付け済み/)).toBeVisible()
 
     // 11. 「みんなの予定」集計表に「参加者アリス」が反映されていることを検証
     await expect(page.getByRole('button', { name: '参加者アリス' }).first()).toBeVisible()
@@ -114,14 +130,16 @@ test.describe('イベントライフサイクルと回答登録のE2Eテスト',
     await expect(page.getByText('開催日時が決定しました！')).toBeVisible()
     await expect(page.getByText('🎉 開催決定')).toBeVisible()
 
-    // 13. 右上の自分のアカウント名をクリックしてマイページへ遷移し、作成したイベント一覧を確認
+    // 13. 右上の自分のアカウント名をクリックしてマイページへ遷移し、作成したイベント一覧・回答したイベント一覧を確認
     const mypageLink = page.locator('header a[href="/mypage"]')
     await expect(mypageLink).toBeVisible()
     await mypageLink.click()
 
     await expect(page).toHaveURL(/\/mypage/)
     await expect(page.getByRole('heading', { name: 'あなたが作成したイベント' })).toBeVisible()
-    await expect(page.getByRole('link', { name: uniqueTitle })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'あなたが回答したイベント' })).toBeVisible()
+    await expect(page.getByRole('link', { name: uniqueTitle }).first()).toBeVisible()
+    await expect(page.getByText('回答名: 参加者アリス').first()).toBeVisible()
     await expect(page.getByText('【前夜祭】').first()).toBeVisible()
     await expect(page.getByText('🎉 開催決定').first()).toBeVisible()
     await expect(page.getByText('候補枠: 9').first()).toBeVisible()

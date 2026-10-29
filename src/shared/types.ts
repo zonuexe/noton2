@@ -43,6 +43,8 @@ export interface SlotAnswer {
 export interface Participant {
   id: string
   eventId: string
+  userId?: string | null
+  user?: CreatorProfile | null
   name: string
   comment?: string | null
   editToken?: string
@@ -112,6 +114,23 @@ export interface UserCreatedEventSummary {
   confirmedDateTitle?: string | null
   createdAt: string
   updatedAt: string
+  slotCount: number
+  participantCount: number
+}
+
+export interface UserParticipatedEventSummary {
+  id: string
+  title: string
+  description: string | null
+  organizerName: string
+  confirmedSlotId: string | null
+  confirmedSlotDate?: string | null
+  confirmedStartTime?: string | null
+  confirmedEndTime?: string | null
+  confirmedDateTitle?: string | null
+  participantId: string
+  participantName: string
+  respondedAt: string
   slotCount: number
   participantCount: number
 }

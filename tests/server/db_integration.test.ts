@@ -20,6 +20,7 @@ import {
   deleteParticipant,
   deleteEvent,
   getEventsByCreatorUserId,
+  getParticipatedEventsByUserId,
 } from '@/server/db/client'
 
 /**
@@ -446,5 +447,140 @@ describe('server/db/client - 実 SQLite (schema.sql) を用いた統合テスト
     const bobEvents = await getEventsByCreatorUserId(db, userB.id)
     expect(bobEvents).toHaveLength(1)
     expect(bobEvents[0].title).toBe('Bob Event')
+  })
+
+  it('回答者のアカウント紐付け: ログイン時新規回答、未ログイン回答からの再提出による紐付け、およびログイン本人によるトークンなし再編集・削除が動作すること', async () => {
+    const organizer = await upsertUser(db, {
+      githubId: 2001,
+      username: 'org_user',
+      displayName: 'Organizer',
+    })
+    const responderA = await upsertUser(db, {
+      githubId: 2002,
+      username: 'resp_alice',
+      displayName: 'Alice Responder',
+      avatarUrl: 'https://avatars.githubusercontent.com/u/2002',
+    })
+    const responderB = await upsertUser(db, {
+      githubId: 2003,
+      username: 'resp_bob',
+      displayName: 'Bob Responder',
+    })
+
+    const ev = await createEvent(
+      db,
+      {
+        title: '紐付け検証イベント',
+        organizerName: 'Organizer',
+        slots: [
+          { slotDate: '2026-12-01', startTime: '10:00', endTime: '11:00' },
+          { slotDate: '2026-12-01', startTime: '11:00', endTime: '12:00' },
+        ],
+      },
+      organizer.id
+    )
+    const evDetail0 = await getEventById(db, ev.id)
+    const [slot1, slot2] = evDetail0!.slots
+
+    // 1. ログイン状態で新規回答 -> 最初から responderA.id に紐付くこと
+    const res1 = await submitResponse(
+      db,
+      ev.id,
+      {
+        name: 'アリス（ログイン済）',
+        comment: '初回ログイン回答',
+        answers: [{ slotId: slot1.id, status: 'available' }],
+      },
+      responderA.id
+    )
+    expect(res1.userId).toBe(responderA.id)
+
+    // 2. 別デバイスを想定し、editToken なしで本人ログイン (responderA.id) だけで再編集できること
+    const res1Update = await submitResponse(
+      db,
+      ev.id,
+      {
+        participantId: res1.participantId,
+        // editToken を渡さない
+        name: 'アリス（別端末から更新）',
+        comment: 'トークンなし本人更新',
+        answers: [{ slotId: slot1.id, status: 'maybe' }],
+      },
+      responderA.id
+    )
+    expect(res1Update.userId).toBe(responderA.id)
+    expect(res1Update.editToken).toBe(res1.editToken)
+
+    // 3. 未ログイン状態で Bob が回答 -> 最初は userId が null であること
+    const res2 = await submitResponse(
+      db,
+      ev.id,
+      {
+        name: 'ボブ（未ログイン）',
+        answers: [{ slotId: slot2.id, status: 'available' }],
+      },
+      null
+    )
+    expect(res2.userId).toBeNull()
+
+    // 4. Bob が後からログインし、editToken と共に再提出 -> responderB.id に紐付けられること
+    const res2Linked = await submitResponse(
+      db,
+      ev.id,
+      {
+        participantId: res2.participantId,
+        editToken: res2.editToken,
+        name: 'ボブ（ログイン後に再提出）',
+        comment: '後から紐付け成功',
+        answers: [{ slotId: slot2.id, status: 'available' }],
+      },
+      responderB.id
+    )
+    expect(res2Linked.userId).toBe(responderB.id)
+
+    // 5. すでに responderB に紐付いた回答を、別ユーザー (responderA) が editToken を使って乗っ取ろうとしても拒否されること
+    await expect(
+      submitResponse(
+        db,
+        ev.id,
+        {
+          participantId: res2.participantId,
+          editToken: res2.editToken,
+          name: '乗っ取り試行',
+          answers: [],
+        },
+        responderA.id
+      )
+    ).rejects.toThrow('この回答は別のアカウントに紐付いています')
+
+    // 6. getEventById で参加者の user プロフィールが取得でき、本人アクセス時は editToken も返ること
+    const evDetailForBob = await getEventById(db, ev.id, undefined, responderB.id)
+    const bobParticipant = evDetailForBob!.participants.find((p) => p.id === res2.participantId)!
+    expect(bobParticipant.userId).toBe(responderB.id)
+    expect(bobParticipant.user?.username).toBe('resp_bob')
+    expect(bobParticipant.editToken).toBe(res2.editToken)
+
+    // 他人 (Alice) の editToken は Bob には露出しないこと
+    const aliceParticipant = evDetailForBob!.participants.find((p) => p.id === res1.participantId)!
+    expect(aliceParticipant.userId).toBe(responderA.id)
+    expect(aliceParticipant.user?.username).toBe('resp_alice')
+    expect(aliceParticipant.editToken).toBeUndefined()
+
+    // 7. getParticipatedEventsByUserId で回答したイベント一覧が取得できること
+    const bobParticipated = await getParticipatedEventsByUserId(db, responderB.id)
+    expect(bobParticipated).toHaveLength(1)
+    expect(bobParticipated[0].id).toBe(ev.id)
+    expect(bobParticipated[0].participantName).toBe('ボブ（ログイン後に再提出）')
+
+    // 8. 紐付け済みの回答は、トークンなしでも本人ログイン (responderB.id) で削除できること
+    const deletedByOwner = await deleteParticipant(
+      db,
+      ev.id,
+      res2.participantId,
+      undefined,
+      responderB.id
+    )
+    expect(deletedByOwner).toBe(true)
+    expect(await getParticipatedEventsByUserId(db, responderB.id)).toHaveLength(0)
   })
 })

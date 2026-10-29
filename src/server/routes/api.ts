@@ -282,11 +282,12 @@ api.patch('/events/:id', async (c) => {
   }
 })
 
-// 回答登録・編集（※ 誰でもログイン不要で回答可能）
+// 回答登録・編集（※ 誰でもログイン不要で回答可能、ログイン中であればアカウントに紐付け）
 api.post('/events/:id/responses', async (c) => {
   try {
     const eventId = c.req.param('id')
     const body = await c.req.json<SubmitResponseInput>()
+    const currentUser = c.get('user')
 
     if (!body.name || !body.name.trim()) {
       return c.json({ error: 'お名前（ニックネーム）を入力してください' }, 400)
@@ -309,14 +310,17 @@ api.post('/events/:id/responses', async (c) => {
       }
     }
 
-    const result = await submitResponse(c.env.DB, eventId, body)
+    const result = await submitResponse(c.env.DB, eventId, body, currentUser?.id)
     return c.json(result)
   } catch (err: any) {
     console.error('Submit response error:', err)
     if (err.message === '指定されたイベントが見つかりません') {
       return c.json({ error: err.message }, 404)
     }
-    if (err.message === '編集権限がありません') {
+    if (
+      err.message === '編集権限がありません' ||
+      err.message === 'この回答は別のアカウントに紐付いています'
+    ) {
       return c.json({ error: err.message }, 403)
     }
     if (err.message.includes('上限')) {

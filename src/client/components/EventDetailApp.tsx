@@ -6,7 +6,7 @@ import { defineVaporComponent, ref, computed } from 'vue'
 import { AnswerForm } from './AnswerForm'
 import { MatrixTable } from './MatrixTable'
 import { AdminControls } from './AdminControls'
-import type { EventDetail } from '@/shared/types'
+import type { EventDetail, User } from '@/shared/types'
 import { formatDateLabel, sanitizeHttpUrl } from '@/shared/time'
 
 export const EventDetailApp = defineVaporComponent({
@@ -14,6 +14,10 @@ export const EventDetailApp = defineVaporComponent({
     initialEvent: {
       type: Object as () => EventDetail,
       required: true,
+    },
+    initialUser: {
+      type: Object as () => User | null,
+      default: null,
     },
   },
   setup(props) {
@@ -208,12 +212,17 @@ export const EventDetailApp = defineVaporComponent({
         {/* 出欠集計表 (マトリクス) */}
         <MatrixTable
           event={event.value}
+          currentUser={props.initialUser}
           adminToken={effectiveAdminToken.value}
           onReload={reloadEvent}
         />
 
         {/* 回答入力フォーム（誰でも登録不要で回答可能） */}
-        <AnswerForm event={event.value} onSuccess={reloadEvent} />
+        <AnswerForm
+          event={event.value}
+          currentUser={props.initialUser}
+          onSuccess={reloadEvent}
+        />
       </div>
     )
   },

@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import { defineVaporComponent, ref, computed, onMounted, onUnmounted } from 'vue'
-import type { AnswerStatus, EventDetail, SubmitResponseInput } from '@/shared/types'
+import type { AnswerStatus, EventDetail, SubmitResponseInput, User } from '@/shared/types'
 import { TIMELINE_HOURS, formatDateLabel, getSlotsForHour } from '@/shared/time'
 import {
   type AnswerTool,
@@ -17,6 +17,10 @@ export const AnswerForm = defineVaporComponent({
     event: {
       type: Object as () => EventDetail,
       required: true,
+    },
+    currentUser: {
+      type: Object as () => User | null,
+      default: null,
     },
     onSuccess: {
       type: Function as unknown as () => () => void,
@@ -42,6 +46,33 @@ export const AnswerForm = defineVaporComponent({
     const errorMessage = ref('')
     const successMessage = ref('')
 
+    // 現在編集中の参加者オブジェクト
+    const currentParticipant = computed(() =>
+      participantId.value
+        ? props.event.participants.find((p) => p.id === participantId.value) || null
+        : null
+    )
+
+    // 未ログインで作成した既存回答があり、かつ現在ログイン中（まだアカウントに紐付いていない状態）
+    const isUnlinkedExistingResponse = computed(() =>
+      Boolean(
+        props.currentUser &&
+          participantId.value &&
+          currentParticipant.value &&
+          !currentParticipant.value.userId
+      )
+    )
+
+    // すでに現在のログインアカウントに紐付いている状態
+    const isLinkedToCurrentUser = computed(() =>
+      Boolean(
+        props.currentUser &&
+          participantId.value &&
+          currentParticipant.value &&
+          currentParticipant.value.userId === props.currentUser.id
+      )
+    )
+
     // ユニーク日付一覧
     const uniqueDates = computed(() => {
       const dateSet = new Set<string>()
@@ -52,37 +83,50 @@ export const AnswerForm = defineVaporComponent({
     // 刻み幅が30分かどうか
     const is30Min = computed(() => props.event.slotIntervalMinutes === 30)
 
-    const handleStorageChange = () => {
+    const loadOwnResponse = () => {
       try {
         if (typeof window === 'undefined') return
         const stored = localStorage.getItem(`noton2_resp_${props.event.id}`)
-        if (!stored) {
-          startNewResponse()
-        }
-      } catch (e) {
-        console.error(e)
-      }
-    }
-
-    // localStorage から過去の自分の回答を取得
-    onMounted(() => {
-      try {
-        if (typeof window === 'undefined') return
-        const stored = localStorage.getItem(`noton2_resp_${props.event.id}`)
+        let loaded = false
         if (stored) {
           const parsed = JSON.parse(stored)
-          if (parsed.participantId && parsed.editToken) {
-            participantId.value = parsed.participantId
-            editToken.value = parsed.editToken
-            name.value = parsed.name || ''
-
+          if (parsed.participantId) {
             const existing = props.event.participants.find((p) => p.id === parsed.participantId)
             if (existing) {
+              participantId.value = existing.id
+              editToken.value = parsed.editToken || existing.editToken || null
               name.value = existing.name
               comment.value = existing.comment || ''
               if (existing.answers) {
                 answers.value = { ...existing.answers }
               }
+              loaded = true
+            }
+          }
+        }
+
+        // localStorage になくても、ログインユーザーのアカウントに紐付いた回答があれば自動で読み込む
+        if (!loaded && props.currentUser) {
+          const existingByUser = props.event.participants.find(
+            (p) => p.userId && p.userId === props.currentUser!.id
+          )
+          if (existingByUser) {
+            participantId.value = existingByUser.id
+            editToken.value = existingByUser.editToken || null
+            name.value = existingByUser.name
+            comment.value = existingByUser.comment || ''
+            if (existingByUser.answers) {
+              answers.value = { ...existingByUser.answers }
+            }
+            if (existingByUser.editToken) {
+              localStorage.setItem(
+                `noton2_resp_${props.event.id}`,
+                JSON.stringify({
+                  participantId: existingByUser.id,
+                  editToken: existingByUser.editToken,
+                  name: existingByUser.name,
+                })
+              )
             }
           }
         }
@@ -98,6 +142,25 @@ export const AnswerForm = defineVaporComponent({
         }
       })
       answers.value = initial
+    }
+
+    const handleStorageChange = () => {
+      try {
+        if (typeof window === 'undefined') return
+        const stored = localStorage.getItem(`noton2_resp_${props.event.id}`)
+        if (!stored) {
+          startNewResponse()
+        } else {
+          loadOwnResponse()
+        }
+      } catch (e) {
+        console.error(e)
+      }
+    }
+
+    // 初期マウント時に自分の回答を取得
+    onMounted(() => {
+      loadOwnResponse()
 
       // グローバル mouseup でドラッグ終了
       window.addEventListener('mouseup', stopDrag)
@@ -193,6 +256,7 @@ export const AnswerForm = defineVaporComponent({
         }
 
         const isNew = !participantId.value
+        const wasUnlinked = isUnlinkedExistingResponse.value
 
         // localStorage に保存
         participantId.value = data.participantId
@@ -207,7 +271,15 @@ export const AnswerForm = defineVaporComponent({
         )
         window.dispatchEvent(new CustomEvent('noton2-response-changed'))
 
-        successMessage.value = isNew ? '回答を登録しました！' : '回答を更新しました！'
+        if (isNew) {
+          successMessage.value = props.currentUser
+            ? `回答を登録し、@${props.currentUser.username} に紐付けました！`
+            : '回答を登録しました！'
+        } else if (wasUnlinked && data.userId) {
+          successMessage.value = `回答を更新し、@${props.currentUser?.username} に紐付けました！`
+        } else {
+          successMessage.value = '回答を更新しました！'
+        }
         setTimeout(() => (successMessage.value = ''), 4000)
 
         props.onSuccess()
@@ -237,7 +309,7 @@ export const AnswerForm = defineVaporComponent({
         class="bg-white rounded-3xl p-4 sm:p-6 md:p-8 border border-stone-200 shadow-xl shadow-stone-100/50 space-y-6"
       >
         {/* 見出し */}
-        <div class="flex items-center justify-between border-b border-stone-200 pb-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-200 pb-4">
           <div>
             <h2
               id="answer-form-heading"
@@ -252,15 +324,38 @@ export const AnswerForm = defineVaporComponent({
               お名前を入力し、タイムラインの各時間をタップ（またはなぞって）出欠を選択してください。
             </p>
           </div>
-          {participantId.value ? (
-            <button
-              type="button"
-              onClick={startNewResponse}
-              class="text-xs text-rose-500 hover:text-rose-600 font-bold underline cursor-pointer"
-            >
-              別名で新規回答
-            </button>
-          ) : null}
+          <div class="flex items-center gap-2 flex-wrap">
+            {isLinkedToCurrentUser.value ? (
+              <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold">
+                <span aria-hidden="true">🔗</span>
+                <span>@{props.currentUser?.username} に紐付け済み</span>
+              </span>
+            ) : !participantId.value && props.currentUser ? (
+              <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold">
+                <span aria-hidden="true">🔗</span>
+                <span>@{props.currentUser.username} に自動紐付け</span>
+              </span>
+            ) : !props.currentUser && participantId.value ? (
+              <a
+                href={`/auth/github?returnTo=${encodeURIComponent(`/events/${props.event.id}`)}`}
+                rel="nofollow"
+                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold transition"
+              >
+                <span aria-hidden="true">🔗</span>
+                <span>ログインしてアカウントに紐付ける</span>
+              </a>
+            ) : null}
+
+            {participantId.value ? (
+              <button
+                type="button"
+                onClick={startNewResponse}
+                class="text-xs text-rose-500 hover:text-rose-600 font-bold underline cursor-pointer"
+              >
+                別名で新規回答
+              </button>
+            ) : null}
+          </div>
         </div>
 
         <form
@@ -270,6 +365,27 @@ export const AnswerForm = defineVaporComponent({
           }}
           class="space-y-6"
         >
+          {isUnlinkedExistingResponse.value ? (
+            <div class="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-900">
+              <div class="flex items-start sm:items-center gap-2">
+                <span class="text-base leading-none" aria-hidden="true">
+                  🔗
+                </span>
+                <span>
+                  未ログイン時の回答（<strong>{name.value}</strong>
+                  ）が見つかりました。このまま再提出（更新）すると現在のログインアカウント（
+                  <strong>@{props.currentUser?.username}</strong>）に紐付けられます。
+                </span>
+              </div>
+              <button
+                type="submit"
+                disabled={isSubmitting.value}
+                class="shrink-0 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl shadow-2xs transition cursor-pointer"
+              >
+                今すぐ紐付けて更新
+              </button>
+            </div>
+          ) : null}
           {errorMessage.value ? (
             <div role="alert" class="p-3 bg-rose-100 border border-rose-300 text-rose-800 rounded-xl text-xs font-medium">
               ⚠️ {errorMessage.value}

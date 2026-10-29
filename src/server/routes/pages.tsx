@@ -3,7 +3,11 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import { Hono } from 'hono'
-import { getEventById, getEventsByCreatorUserId } from '../db/client'
+import {
+  getEventById,
+  getEventsByCreatorUserId,
+  getParticipatedEventsByUserId,
+} from '../db/client'
 import { formatDateLabel } from '@/shared/time'
 import type { AuthBindings, AuthVariables } from '../middleware/auth'
 
@@ -116,7 +120,10 @@ pages.get('/mypage', async (c) => {
     return c.redirect('/auth/github?returnTo=/mypage')
   }
 
-  const events = await getEventsByCreatorUserId(c.env.DB, user.id)
+  const [events, participatedEvents] = await Promise.all([
+    getEventsByCreatorUserId(c.env.DB, user.id),
+    getParticipatedEventsByUserId(c.env.DB, user.id),
+  ])
 
   const safeProfileUrl =
     user.profileUrl && /^https:\/\/github\.com\/[a-zA-Z0-9-_]+$/.test(user.profileUrl)
@@ -128,7 +135,7 @@ pages.get('/mypage', async (c) => {
       : null
 
   return c.render(
-    <div class="space-y-6 max-w-4xl mx-auto py-2">
+    <div class="space-y-8 max-w-4xl mx-auto py-2">
       {/* ユーザーヘッダー */}
       <header class="h-card bg-white rounded-2xl border border-rose-100 shadow-sm p-5 md:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div class="flex items-center gap-4">
@@ -158,8 +165,22 @@ pages.get('/mypage', async (c) => {
                 @{user.username} ↗
               </a>
             </div>
-            <p class="text-xs text-stone-500 mt-1">
-              作成したイベント: <data value={events.length} class="font-bold text-stone-800">{events.length}</data> 件
+            <p class="text-xs text-stone-500 mt-1 flex items-center gap-3">
+              <span>
+                作成したイベント:{' '}
+                <data value={events.length} class="font-bold text-stone-800">
+                  {events.length}
+                </data>{' '}
+                件
+              </span>
+              <span>•</span>
+              <span>
+                回答したイベント:{' '}
+                <data value={participatedEvents.length} class="font-bold text-stone-800">
+                  {participatedEvents.length}
+                </data>{' '}
+                件
+              </span>
             </p>
           </div>
         </div>
@@ -283,6 +304,103 @@ pages.get('/mypage', async (c) => {
           </div>
         )}
       </section>
+
+      {/* 回答したイベント一覧セクション */}
+      <section aria-labelledby="participated-events-heading" class="space-y-4">
+        <div class="flex items-center justify-between px-1">
+          <h2
+            id="participated-events-heading"
+            class="text-lg font-bold text-stone-800 font-['M_PLUS_Rounded_1c'] flex items-center gap-2"
+          >
+            <span>✍️</span>
+            <span>あなたが回答したイベント</span>
+          </h2>
+        </div>
+
+        {participatedEvents.length === 0 ? (
+          <div class="bg-white rounded-2xl border border-stone-200 p-6 md:p-8 text-center space-y-2">
+            <p class="text-xs sm:text-sm text-stone-500">
+              アカウントに紐付けられた回答はまだありません。イベントにログイン状態で回答（または再提出）するとここに一覧表示されます。
+            </p>
+          </div>
+        ) : (
+          <div class="space-y-3">
+            {participatedEvents.map((ev) => {
+              const isConfirmed = Boolean(ev.confirmedSlotId)
+              const respondedDateFormatted = ev.respondedAt
+                ? ev.respondedAt.slice(0, 10).replace(/-/g, '/')
+                : ''
+
+              return (
+                <article
+                  key={`${ev.id}-${ev.participantId}`}
+                  class="h-event bg-white rounded-2xl border border-stone-200 shadow-xs hover:shadow-md transition-shadow p-5 flex flex-col md:flex-row md:items-center justify-between gap-4"
+                >
+                  <div class="space-y-2 flex-1 min-w-0">
+                    <div class="flex flex-wrap items-center gap-2">
+                      {isConfirmed ? (
+                        <span class="p-category inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          <span>🎉</span> 開催決定
+                        </span>
+                      ) : (
+                        <span class="p-category inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-sky-100 text-sky-800 border border-sky-200">
+                          <span>✅</span> 回答済み
+                        </span>
+                      )}
+                      <h3 class="text-base font-bold text-stone-900 truncate">
+                        <a href={`/events/${ev.id}`} class="p-name u-url hover:text-rose-600 transition-colors">
+                          {ev.title}
+                        </a>
+                      </h3>
+                    </div>
+
+                    {isConfirmed && ev.confirmedSlotDate && (
+                      <div class="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100 inline-block">
+                        {ev.confirmedDateTitle && <span class="p-category mr-1">【{ev.confirmedDateTitle}】</span>}
+                        <time class="dt-start" datetime={`${ev.confirmedSlotDate}T${ev.confirmedStartTime}`}>
+                          {formatDateLabel(ev.confirmedSlotDate)} {ev.confirmedStartTime}
+                        </time>
+                        <span>〜</span>
+                        <time class="dt-end" datetime={`${ev.confirmedSlotDate}T${ev.confirmedEndTime}`}>
+                          {ev.confirmedEndTime}
+                        </time>
+                      </div>
+                    )}
+
+                    <div class="flex flex-wrap items-center gap-3 text-xs text-stone-500 pt-1">
+                      <span>
+                        回答名: <strong class="text-stone-700">{ev.participantName}</strong>
+                      </span>
+                      <span>•</span>
+                      <span>
+                        主催者: <strong class="text-stone-700">{ev.organizerName}</strong>
+                      </span>
+                      {respondedDateFormatted && (
+                        <>
+                          <span>•</span>
+                          <span>
+                            最終回答:{' '}
+                            <time datetime={ev.respondedAt}>{respondedDateFormatted}</time>
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-2 pt-2 md:pt-0 border-t md:border-t-0 border-stone-100">
+                    <a
+                      href={`/events/${ev.id}`}
+                      class="u-url w-full md:w-auto text-center px-4 py-2 bg-stone-100 hover:bg-rose-50 hover:text-rose-600 text-stone-700 rounded-xl text-xs font-bold transition-colors"
+                    >
+                      イベントを開く →
+                    </a>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        )}
+      </section>
     </div>,
     {
       title: 'マイページ - 作成したイベント一覧',
@@ -330,7 +448,11 @@ pages.get('/events/:id', async (c) => {
 
   return c.render(
     <div>
-      <div id="event-detail-island" data-event={JSON.stringify(event)}></div>
+      <div
+        id="event-detail-island"
+        data-event={JSON.stringify(event)}
+        data-user={JSON.stringify(currentUser || null)}
+      ></div>
     </div>,
     {
       title: `${event.title} の日程調整`,
