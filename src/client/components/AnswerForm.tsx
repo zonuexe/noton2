@@ -231,15 +231,19 @@ export const AnswerForm = defineVaporComponent({
     }
 
     return (
-      <div
+      <section
         id="answer-form-section"
+        aria-labelledby="answer-form-heading"
         class="bg-white rounded-3xl p-4 sm:p-6 md:p-8 border border-stone-200 shadow-xl shadow-stone-100/50 space-y-6"
       >
         {/* 見出し */}
         <div class="flex items-center justify-between border-b border-stone-200 pb-4">
           <div>
-            <h2 class="text-lg md:text-xl font-bold text-stone-900 font-['M_PLUS_Rounded_1c'] flex items-center gap-2">
-              <span class="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-rose-100 text-base">
+            <h2
+              id="answer-form-heading"
+              class="text-lg md:text-xl font-bold text-stone-900 font-['M_PLUS_Rounded_1c'] flex items-center gap-2"
+            >
+              <span class="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-rose-100 text-base" aria-hidden="true">
                 ✍️
               </span>
               <span>{participantId.value ? '回答を編集する' : 'あなたの予定を追加する'}</span>
@@ -259,43 +263,58 @@ export const AnswerForm = defineVaporComponent({
           ) : null}
         </div>
 
-        {errorMessage.value ? (
-          <div class="p-3 bg-rose-100 border border-rose-300 text-rose-800 rounded-xl text-xs font-medium">
-            ⚠️ {errorMessage.value}
-          </div>
-        ) : null}
+        <form
+          onSubmit={(e: any) => {
+            e.preventDefault()
+            handleSubmit()
+          }}
+          class="space-y-6"
+        >
+          {errorMessage.value ? (
+            <div role="alert" class="p-3 bg-rose-100 border border-rose-300 text-rose-800 rounded-xl text-xs font-medium">
+              ⚠️ {errorMessage.value}
+            </div>
+          ) : null}
 
-        {successMessage.value ? (
-          <div class="p-3 bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-xl text-xs font-bold animate-pulse">
-            ✅ {successMessage.value}
-          </div>
-        ) : null}
+          {successMessage.value ? (
+            <div role="status" class="p-3 bg-emerald-100 border border-emerald-300 text-emerald-800 rounded-xl text-xs font-bold animate-pulse">
+              ✅ {successMessage.value}
+            </div>
+          ) : null}
 
-        {/* 参加者名 & コメント */}
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label class="block text-xs font-bold text-stone-700 mb-1">
-              お名前（ニックネーム） <span class="text-rose-500">*</span>
-            </label>
-            <input
-              type="text"
-              placeholder="例: たなか、田中（19時以降）"
-              value={name.value}
-              onInput={(e: any) => (name.value = e.target.value)}
-              class="w-full border border-stone-200 focus:border-rose-400 focus:ring-2 focus:ring-rose-200 rounded-xl px-3.5 py-2 text-sm outline-none font-medium"
-            />
+          {/* 参加者名 & コメント */}
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label for="participant-name" class="block text-xs font-bold text-stone-700 mb-1">
+                お名前（ニックネーム） <span class="text-rose-500">*</span>
+              </label>
+              <input
+                id="participant-name"
+                name="name"
+                type="text"
+                autocomplete="name"
+                required
+                placeholder="例: たなか、田中（19時以降）"
+                value={name.value}
+                onInput={(e: any) => (name.value = e.target.value)}
+                class="w-full border border-stone-200 focus:border-rose-400 focus:ring-2 focus:ring-rose-200 rounded-xl px-3.5 py-2 text-sm outline-none font-medium"
+              />
+            </div>
+            <div>
+              <label for="participant-comment" class="block text-xs font-bold text-stone-700 mb-1">
+                コメント（任意）
+              </label>
+              <input
+                id="participant-comment"
+                name="comment"
+                type="text"
+                placeholder="例: 10分ほど遅れるかもしれません"
+                value={comment.value}
+                onInput={(e: any) => (comment.value = e.target.value)}
+                class="w-full border border-stone-200 focus:border-rose-400 focus:ring-2 focus:ring-rose-200 rounded-xl px-3.5 py-2 text-sm outline-none font-medium"
+              />
+            </div>
           </div>
-          <div>
-            <label class="block text-xs font-bold text-stone-700 mb-1">コメント（任意）</label>
-            <input
-              type="text"
-              placeholder="例: 10分ほど遅れるかもしれません"
-              value={comment.value}
-              onInput={(e: any) => (comment.value = e.target.value)}
-              class="w-full border border-stone-200 focus:border-rose-400 focus:ring-2 focus:ring-rose-200 rounded-xl px-3.5 py-2 text-sm outline-none font-medium"
-            />
-          </div>
-        </div>
 
         {/* タイムライン操作ツールバー */}
         <div class="bg-stone-50 p-3 sm:p-4 rounded-2xl border border-stone-200 space-y-3">
@@ -500,22 +519,22 @@ export const AnswerForm = defineVaporComponent({
         {/* 送信ボタン */}
         <div class="pt-2">
           <button
-            type="button"
+            type="submit"
             disabled={isSubmitting.value}
-            onClick={handleSubmit}
             class="w-full py-4 bg-rose-500 hover:bg-rose-600 active:bg-rose-700 disabled:opacity-50 text-white font-extrabold text-base md:text-lg rounded-2xl shadow-lg shadow-rose-200 transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
             {isSubmitting.value ? (
               <span>送信中...</span>
             ) : (
               <>
-                <span>💌</span>
+                <span aria-hidden="true">💌</span>
                 <span>{participantId.value ? '回答を更新する' : '予定を登録する'}</span>
               </>
             )}
           </button>
         </div>
-      </div>
+        </form>
+      </section>
     )
   },
 })

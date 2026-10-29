@@ -58,6 +58,7 @@ export const renderer = jsxRenderer(({ children, title, description, ogImage, og
         <meta name="twitter:card" content="summary" />
         <meta name="twitter:title" content={pageTitle} />
         <meta name="twitter:description" content={pageDescription} />
+        <link rel="canonical" href={currentUrl} />
 
         {/* Google Fonts (Noto Sans JP) */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -82,16 +83,16 @@ export const renderer = jsxRenderer(({ children, title, description, ogImage, og
       </head>
       <body class="bg-rose-50/40 text-stone-800 min-h-screen font-sans antialiased selection:bg-rose-200 selection:text-rose-900 flex flex-col justify-between">
         <div>
-          <header class="bg-white/80 backdrop-blur-md border-b border-rose-100 sticky top-0 z-40 transition-shadow">
+          <header role="banner" class="bg-white/80 backdrop-blur-md border-b border-rose-100 sticky top-0 z-40 transition-shadow">
             <div class="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-              <a href="/" class="flex items-center gap-2 group">
+              <a href="/" rel="home" class="flex items-center gap-2 group">
                 <span class="text-2xl transition-transform group-hover:scale-110">🐷</span>
                 <span class="font-extrabold text-xl tracking-tight bg-gradient-to-r from-rose-500 to-pink-500 bg-clip-text text-transparent font-['M_PLUS_Rounded_1c']">
                   noton2
                 </span>
               </a>
 
-              <div class="flex items-center gap-2 sm:gap-3 text-sm">
+              <nav aria-label="グローバルナビゲーション" class="flex items-center gap-2 sm:gap-3 text-sm">
                 <a
                   href="/new"
                   class="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 bg-rose-500 hover:bg-rose-600 active:bg-rose-700 text-white rounded-full font-bold shadow-sm shadow-rose-200 transition-all hover:shadow-md text-xs sm:text-sm"
@@ -100,24 +101,24 @@ export const renderer = jsxRenderer(({ children, title, description, ogImage, og
                 </a>
 
                 {user ? (
-                  <div class="flex items-center gap-2 pl-2 border-l border-rose-200">
+                  <div class="h-card flex items-center gap-2 pl-2 border-l border-rose-200">
                     <a
                       href="/mypage"
-                      class="flex items-center gap-1.5 group hover:opacity-90"
+                      class="u-url flex items-center gap-1.5 group hover:opacity-90"
                       title="マイページ（作成したイベント一覧）"
                     >
                       {safeAvatarUrl ? (
                         <img
                           src={safeAvatarUrl}
                           alt={user.username}
-                          class="w-7 h-7 rounded-full border border-rose-200 shadow-sm"
+                          class="u-photo w-7 h-7 rounded-full border border-rose-200 shadow-sm"
                         />
                       ) : (
                         <span class="w-7 h-7 rounded-full bg-rose-100 flex items-center justify-center text-xs">
                           👤
                         </span>
                       )}
-                      <span class="text-xs font-bold text-stone-700 hidden md:inline group-hover:text-rose-600">
+                      <span class="p-nickname text-xs font-bold text-stone-700 hidden md:inline group-hover:text-rose-600">
                         @{user.username}
                       </span>
                     </a>
@@ -133,6 +134,7 @@ export const renderer = jsxRenderer(({ children, title, description, ogImage, og
                 ) : (
                   <a
                     href="/auth/github"
+                    rel="nofollow"
                     class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-stone-900 hover:bg-stone-800 text-white rounded-full font-bold text-xs shadow-sm transition-all"
                     title="イベント作成時にGitHubログインが必要です"
                   >
@@ -142,21 +144,21 @@ export const renderer = jsxRenderer(({ children, title, description, ogImage, og
                     <span>ログイン</span>
                   </a>
                 )}
-              </div>
+              </nav>
             </div>
           </header>
 
-          <main class="max-w-5xl mx-auto px-4 py-6 md:py-10">{children}</main>
+          <main id="main-content" class="max-w-5xl mx-auto px-4 py-6 md:py-10">{children}</main>
         </div>
 
-        <footer class="mt-20 border-t border-rose-100 bg-white/60 py-8 text-center text-xs text-stone-400">
+        <footer role="contentinfo" class="mt-20 border-t border-rose-100 bg-white/60 py-8 text-center text-xs text-stone-400">
           <div class="max-w-5xl mx-auto px-4 flex flex-col items-center gap-2.5">
             <div class="flex items-center gap-1 font-['M_PLUS_Rounded_1c'] font-bold text-stone-600 text-sm">
               <span>🐷</span> noton2
             </div>
             <p>Cloudflare で完結する超高速・日程調整ツールです。</p>
 
-            <div class="flex items-center gap-4 text-xs text-stone-500 pt-0.5">
+            <nav aria-label="フッターナビゲーション" class="flex items-center gap-4 text-xs text-stone-500 pt-0.5">
               <a href="/terms" class="hover:text-rose-600 hover:underline">
                 利用規約
               </a>
@@ -168,14 +170,14 @@ export const renderer = jsxRenderer(({ children, title, description, ogImage, og
               <a
                 href="https://github.com/zonuexe/noton2"
                 target="_blank"
-                rel="noopener noreferrer"
+                rel="external noopener noreferrer"
                 class="hover:text-rose-600 hover:underline inline-flex items-center gap-1"
               >
                 GitHub (OSS)
               </a>
-            </div>
+            </nav>
 
-            <p class="text-[11px] text-stone-400 pt-1">Powered by Cloudflare Workers & D1 + Vue JSX Vapor</p>
+            <small class="text-[11px] text-stone-400 pt-1 block">Powered by Cloudflare Workers & D1 + Vue JSX Vapor</small>
           </div>
         </footer>
       </body>

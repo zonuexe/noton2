@@ -15,12 +15,12 @@ export const pages = new Hono<{
 // トップページ
 pages.get('/', (c) => {
   return c.render(
-    <div class="flex flex-col items-center text-center space-y-8 py-6 md:py-12">
+    <article class="flex flex-col items-center text-center space-y-8 py-6 md:py-12">
       <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-rose-100 text-rose-700 text-sm font-semibold animate-pulse">
         <span>🐷</span> 登録不要ですぐ使える日程調整
       </div>
 
-      <div class="space-y-4 max-w-2xl">
+      <header class="space-y-4 max-w-2xl">
         <h1 class="text-3xl md:text-5xl font-extrabold tracking-tight text-stone-900 font-['M_PLUS_Rounded_1c'] leading-tight">
           みんなの空き時間を
           <br />
@@ -33,7 +33,7 @@ pages.get('/', (c) => {
           <br class="hidden sm:inline" />
           主催者のGitHub身元確認付きで安心。カレンダーから時間枠を選ぶだけで直感的に日程を調整できます。
         </p>
-      </div>
+      </header>
 
       <div class="flex flex-col sm:flex-row items-center gap-4 w-full justify-center max-w-md">
         <a
@@ -46,44 +46,49 @@ pages.get('/', (c) => {
       </div>
 
       {/* 特徴カード 3選 */}
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 w-full mt-10 text-left">
-        <div class="bg-white p-6 rounded-2xl border border-rose-100 shadow-sm hover:shadow-md transition-shadow">
-          <div class="w-12 h-12 rounded-xl bg-rose-100 flex items-center justify-center text-2xl mb-4">
-            ⏱️
-          </div>
-          <h2 class="text-base font-bold text-stone-800 mb-2 font-['M_PLUS_Rounded_1c']">
-            カレンダー×時間帯で直感的
-          </h2>
-          <p class="text-sm text-stone-600 leading-relaxed">
-            「30分単位」「1時間単位」「夜だけ」「ランチだけ」など、カレンダー上でポチポチ選ぶだけで候補枠を作成できます。
-          </p>
-        </div>
+      <section aria-labelledby="features-heading" class="w-full mt-10 text-left">
+        <h2 id="features-heading" class="sr-only">
+          noton2の特徴
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
+          <article class="bg-white p-6 rounded-2xl border border-rose-100 shadow-sm hover:shadow-md transition-shadow">
+            <figure class="w-12 h-12 rounded-xl bg-rose-100 flex items-center justify-center text-2xl mb-4" aria-hidden="true">
+              ⏱️
+            </figure>
+            <h3 class="text-base font-bold text-stone-800 mb-2 font-['M_PLUS_Rounded_1c']">
+              カレンダー×時間帯で直感的
+            </h3>
+            <p class="text-sm text-stone-600 leading-relaxed">
+              「30分単位」「1時間単位」「夜だけ」「ランチだけ」など、カレンダー上でポチポチ選ぶだけで候補枠を作成できます。
+            </p>
+          </article>
 
-        <div class="bg-white p-6 rounded-2xl border border-rose-100 shadow-sm hover:shadow-md transition-shadow">
-          <div class="w-12 h-12 rounded-xl bg-pink-100 flex items-center justify-center text-2xl mb-4">
-            🎯
-          </div>
-          <h2 class="text-base font-bold text-stone-800 mb-2 font-['M_PLUS_Rounded_1c']">
-            直感的な 3段階回答
-          </h2>
-          <p class="text-sm text-stone-600 leading-relaxed">
-            ◯（参加可能）、△（未定）、✕（不可）の3段階。参加者は登録不要で、ドラッグ塗りや一括選択もストレスフリー。
-          </p>
-        </div>
+          <article class="bg-white p-6 rounded-2xl border border-rose-100 shadow-sm hover:shadow-md transition-shadow">
+            <figure class="w-12 h-12 rounded-xl bg-pink-100 flex items-center justify-center text-2xl mb-4" aria-hidden="true">
+              🎯
+            </figure>
+            <h3 class="text-base font-bold text-stone-800 mb-2 font-['M_PLUS_Rounded_1c']">
+              直感的な 3段階回答
+            </h3>
+            <p class="text-sm text-stone-600 leading-relaxed">
+              ◯（参加可能）、△（未定）、✕（不可）の3段階。参加者は登録不要で、ドラッグ塗りや一括選択もストレスフリー。
+            </p>
+          </article>
 
-        <div class="bg-white p-6 rounded-2xl border border-rose-100 shadow-sm hover:shadow-md transition-shadow">
-          <div class="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center text-2xl mb-4">
-            🛡️
-          </div>
-          <h2 class="text-base font-bold text-stone-800 mb-2 font-['M_PLUS_Rounded_1c']">
-            GitHub連携で安心・安全
-          </h2>
-          <p class="text-sm text-stone-600 leading-relaxed">
-            イベント作成者はGitHubログインで身元が明示されるため、参加者も安心。主催者はログインするだけで管理可能です。
-          </p>
+          <article class="bg-white p-6 rounded-2xl border border-rose-100 shadow-sm hover:shadow-md transition-shadow">
+            <figure class="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center text-2xl mb-4" aria-hidden="true">
+              🛡️
+            </figure>
+            <h3 class="text-base font-bold text-stone-800 mb-2 font-['M_PLUS_Rounded_1c']">
+              GitHub連携で安心・安全
+            </h3>
+            <p class="text-sm text-stone-600 leading-relaxed">
+              イベント作成者はGitHubログインで身元が明示されるため、参加者も安心。主催者はログインするだけで管理可能です。
+            </p>
+          </article>
         </div>
-      </div>
-    </div>,
+      </section>
+    </article>,
     {
       title: 'ログイン不要の超高速日程調整ツール',
     }
@@ -125,36 +130,36 @@ pages.get('/mypage', async (c) => {
   return c.render(
     <div class="space-y-6 max-w-4xl mx-auto py-2">
       {/* ユーザーヘッダー */}
-      <div class="bg-white rounded-2xl border border-rose-100 shadow-sm p-5 md:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <header class="h-card bg-white rounded-2xl border border-rose-100 shadow-sm p-5 md:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div class="flex items-center gap-4">
           {safeAvatarUrl ? (
             <img
               src={safeAvatarUrl}
               alt={user.username}
-              class="w-14 h-14 rounded-full border-2 border-rose-200 shadow-sm"
+              class="u-photo w-14 h-14 rounded-full border-2 border-rose-200 shadow-sm"
             />
           ) : (
-            <div class="w-14 h-14 rounded-full bg-rose-100 border-2 border-rose-200 flex items-center justify-center text-2xl">
+            <div class="w-14 h-14 rounded-full bg-rose-100 border-2 border-rose-200 flex items-center justify-center text-2xl" aria-hidden="true">
               👤
             </div>
           )}
           <div>
             <div class="flex items-center gap-2">
-              <h1 class="text-xl font-bold text-stone-900 font-['M_PLUS_Rounded_1c']">
+              <h1 class="p-name text-xl font-bold text-stone-900 font-['M_PLUS_Rounded_1c']">
                 {user.displayName || user.username}
               </h1>
               <a
                 href={safeProfileUrl}
                 target="_blank"
-                rel="noopener noreferrer"
-                class="text-xs text-rose-600 hover:text-rose-700 hover:underline font-mono"
+                rel="author external noopener noreferrer"
+                class="u-url p-nickname text-xs text-rose-600 hover:text-rose-700 hover:underline font-mono"
                 title="GitHubプロフィールを開く"
               >
                 @{user.username} ↗
               </a>
             </div>
             <p class="text-xs text-stone-500 mt-1">
-              作成したイベント: <span class="font-bold text-stone-800">{events.length}</span> 件
+              作成したイベント: <data value={events.length} class="font-bold text-stone-800">{events.length}</data> 件
             </p>
           </div>
         </div>
@@ -165,107 +170,119 @@ pages.get('/mypage', async (c) => {
         >
           <span>＋</span> <span>新しい日程を作る</span>
         </a>
-      </div>
+      </header>
 
-      {/* イベント一覧見出し */}
-      <div class="flex items-center justify-between px-1">
-        <h2 class="text-lg font-bold text-stone-800 font-['M_PLUS_Rounded_1c'] flex items-center gap-2">
-          <span>📋</span>
-          <span>あなたが作成したイベント</span>
-        </h2>
-      </div>
-
-      {/* イベントカード一覧 */}
-      {events.length === 0 ? (
-        <div class="bg-white rounded-2xl border border-stone-200 p-8 md:p-12 text-center space-y-4">
-          <div class="text-4xl">🗓️</div>
-          <div class="space-y-1">
-            <h3 class="text-base font-bold text-stone-800 font-['M_PLUS_Rounded_1c']">
-              まだ作成したイベントはありません
-            </h3>
-            <p class="text-xs sm:text-sm text-stone-500">
-              候補日を選んで日程調整表を作成してみましょう！
-            </p>
-          </div>
-          <div class="pt-2">
-            <a
-              href="/new"
-              class="inline-flex items-center gap-2 px-5 py-2.5 bg-rose-500 hover:bg-rose-600 text-white rounded-xl font-bold text-sm shadow-sm transition-all"
-            >
-              <span>✨</span> <span>最初の日程調整表を作る</span>
-            </a>
-          </div>
+      {/* イベント一覧セクション */}
+      <section aria-labelledby="my-events-heading" class="space-y-4">
+        <div class="flex items-center justify-between px-1">
+          <h2 id="my-events-heading" class="text-lg font-bold text-stone-800 font-['M_PLUS_Rounded_1c'] flex items-center gap-2">
+            <span>📋</span>
+            <span>あなたが作成したイベント</span>
+          </h2>
         </div>
-      ) : (
-        <div class="space-y-3">
-          {events.map((ev) => {
-            const isConfirmed = Boolean(ev.confirmedSlotId)
-            const createdDateFormatted = ev.createdAt ? ev.createdAt.slice(0, 10).replace(/-/g, '/') : ''
 
-            return (
-              <div
-                key={ev.id}
-                class="bg-white rounded-2xl border border-rose-100 shadow-sm hover:shadow-md transition-shadow p-5 flex flex-col md:flex-row md:items-center justify-between gap-4"
+        {events.length === 0 ? (
+          <div class="bg-white rounded-2xl border border-stone-200 p-8 md:p-12 text-center space-y-4">
+            <div class="text-4xl" aria-hidden="true">🗓️</div>
+            <div class="space-y-1">
+              <h3 class="text-base font-bold text-stone-800 font-['M_PLUS_Rounded_1c']">
+                まだ作成したイベントはありません
+              </h3>
+              <p class="text-xs sm:text-sm text-stone-500">
+                候補日を選んで日程調整表を作成してみましょう！
+              </p>
+            </div>
+            <div class="pt-2">
+              <a
+                href="/new"
+                class="inline-flex items-center gap-2 px-5 py-2.5 bg-rose-500 hover:bg-rose-600 text-white rounded-xl font-bold text-sm shadow-sm transition-all"
               >
-                <div class="space-y-2 flex-1 min-w-0">
-                  <div class="flex flex-wrap items-center gap-2">
-                    {isConfirmed ? (
-                      <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                        <span>🎉</span> 開催決定
-                      </span>
-                    ) : (
-                      <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                        <span>🗓️</span> 日程調整中
-                      </span>
-                    )}
-                    <h3 class="text-base font-bold text-stone-900 truncate">
-                      <a href={`/events/${ev.id}`} class="hover:text-rose-600 transition-colors">
-                        {ev.title}
-                      </a>
-                    </h3>
-                  </div>
+                <span>✨</span> <span>最初の日程調整表を作る</span>
+              </a>
+            </div>
+          </div>
+        ) : (
+          <div class="space-y-3">
+            {events.map((ev) => {
+              const isConfirmed = Boolean(ev.confirmedSlotId)
+              const createdDateFormatted = ev.createdAt ? ev.createdAt.slice(0, 10).replace(/-/g, '/') : ''
 
-                  {isConfirmed && ev.confirmedSlotDate && (
-                    <div class="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100 inline-block">
-                      {ev.confirmedDateTitle && <span class="mr-1">【{ev.confirmedDateTitle}】</span>}
-                      {formatDateLabel(ev.confirmedSlotDate)} {ev.confirmedStartTime}〜{ev.confirmedEndTime}
+              return (
+                <article
+                  key={ev.id}
+                  class="h-event bg-white rounded-2xl border border-rose-100 shadow-sm hover:shadow-md transition-shadow p-5 flex flex-col md:flex-row md:items-center justify-between gap-4"
+                >
+                  <div class="space-y-2 flex-1 min-w-0">
+                    <div class="flex flex-wrap items-center gap-2">
+                      {isConfirmed ? (
+                        <span class="p-category inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          <span>🎉</span> 開催決定
+                        </span>
+                      ) : (
+                        <span class="p-category inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                          <span>🗓️</span> 日程調整中
+                        </span>
+                      )}
+                      <h3 class="text-base font-bold text-stone-900 truncate">
+                        <a href={`/events/${ev.id}`} class="p-name u-url hover:text-rose-600 transition-colors">
+                          {ev.title}
+                        </a>
+                      </h3>
                     </div>
-                  )}
 
-                  {ev.description && (
-                    <p class="text-xs text-stone-600 line-clamp-1">{ev.description}</p>
-                  )}
-
-                  <div class="flex flex-wrap items-center gap-3 text-xs text-stone-500 pt-1">
-                    <span>
-                      候補枠: <strong class="text-stone-700">{ev.slotCount}</strong>
-                    </span>
-                    <span>•</span>
-                    <span>
-                      回答者: <strong class="text-stone-700">{ev.participantCount}</strong> 人
-                    </span>
-                    {createdDateFormatted && (
-                      <>
-                        <span>•</span>
-                        <span>作成日: {createdDateFormatted}</span>
-                      </>
+                    {isConfirmed && ev.confirmedSlotDate && (
+                      <div class="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100 inline-block">
+                        {ev.confirmedDateTitle && <span class="p-category mr-1">【{ev.confirmedDateTitle}】</span>}
+                        <time class="dt-start" datetime={`${ev.confirmedSlotDate}T${ev.confirmedStartTime}`}>
+                          {formatDateLabel(ev.confirmedSlotDate)} {ev.confirmedStartTime}
+                        </time>
+                        <span>〜</span>
+                        <time class="dt-end" datetime={`${ev.confirmedSlotDate}T${ev.confirmedEndTime}`}>
+                          {ev.confirmedEndTime}
+                        </time>
+                      </div>
                     )}
-                  </div>
-                </div>
 
-                <div class="flex items-center gap-2 pt-2 md:pt-0 border-t md:border-t-0 border-stone-100">
-                  <a
-                    href={`/events/${ev.id}`}
-                    class="w-full md:w-auto text-center px-4 py-2 bg-stone-100 hover:bg-rose-50 hover:text-rose-600 text-stone-700 rounded-xl text-xs font-bold transition-colors"
-                  >
-                    イベントを開く →
-                  </a>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
+                    {ev.description && (
+                      <p class="p-summary text-xs text-stone-600 line-clamp-1">{ev.description}</p>
+                    )}
+
+                    <div class="flex flex-wrap items-center gap-3 text-xs text-stone-500 pt-1">
+                      <span>
+                        候補枠: <strong class="text-stone-700">{ev.slotCount}</strong>
+                      </span>
+                      <span>•</span>
+                      <span>
+                        回答者: <strong class="text-stone-700">{ev.participantCount}</strong> 人
+                      </span>
+                      {createdDateFormatted && (
+                        <>
+                          <span>•</span>
+                          <span>
+                            作成日:{' '}
+                            <time class="dt-published" datetime={ev.createdAt}>
+                              {createdDateFormatted}
+                            </time>
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-2 pt-2 md:pt-0 border-t md:border-t-0 border-stone-100">
+                    <a
+                      href={`/events/${ev.id}`}
+                      class="u-url w-full md:w-auto text-center px-4 py-2 bg-stone-100 hover:bg-rose-50 hover:text-rose-600 text-stone-700 rounded-xl text-xs font-bold transition-colors"
+                    >
+                      イベントを開く →
+                    </a>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        )}
+      </section>
     </div>,
     {
       title: 'マイページ - 作成したイベント一覧',
@@ -325,14 +342,16 @@ pages.get('/events/:id', async (c) => {
 // 利用規約ページ
 pages.get('/terms', (c) => {
   return c.render(
-    <div class="max-w-3xl mx-auto space-y-6 py-4 md:py-8">
+    <article class="max-w-3xl mx-auto space-y-6 py-4 md:py-8">
       <div class="bg-white rounded-3xl p-6 sm:p-8 md:p-10 border border-rose-100 shadow-md space-y-8 text-stone-700 leading-relaxed">
-        <div class="border-b border-rose-100 pb-4">
+        <header class="border-b border-rose-100 pb-4">
           <h1 class="text-2xl sm:text-3xl font-extrabold text-stone-900 font-['M_PLUS_Rounded_1c']">
             利用規約
           </h1>
-          <p class="text-xs text-stone-400 mt-1">最終更新日: 2026年10月29日</p>
-        </div>
+          <p class="text-xs text-stone-400 mt-1">
+            最終更新日: <time datetime="2026-10-29">2026年10月29日</time>
+          </p>
+        </header>
 
         <p class="text-sm">
           本利用規約（以下「<dfn>本規約</dfn>」）は、noton2（以下「<dfn>本サービス</dfn>」）の利用条件を定めるものです。利用者の皆さま（以下「<dfn>ユーザー</dfn>」）には、本規約に同意いただいた上で本サービスをご利用いただきます。
@@ -420,7 +439,7 @@ pages.get('/terms', (c) => {
           <p class="text-sm">本規約の解釈および適用は、日本法に準拠するものとします。</p>
         </section>
       </div>
-    </div>,
+    </article>,
     {
       title: '利用規約',
       description: 'noton2 の利用規約です。本サービスをご利用いただくにあたっての条件を定めています。',
@@ -431,14 +450,16 @@ pages.get('/terms', (c) => {
 // プライバシーポリシーページ
 pages.get('/privacy', (c) => {
   return c.render(
-    <div class="max-w-3xl mx-auto space-y-6 py-4 md:py-8">
+    <article class="max-w-3xl mx-auto space-y-6 py-4 md:py-8">
       <div class="bg-white rounded-3xl p-6 sm:p-8 md:p-10 border border-rose-100 shadow-md space-y-8 text-stone-700 leading-relaxed">
-        <div class="border-b border-rose-100 pb-4">
+        <header class="border-b border-rose-100 pb-4">
           <h1 class="text-2xl sm:text-3xl font-extrabold text-stone-900 font-['M_PLUS_Rounded_1c']">
             プライバシーポリシー
           </h1>
-          <p class="text-xs text-stone-400 mt-1">最終更新日: 2026年10月29日</p>
-        </div>
+          <p class="text-xs text-stone-400 mt-1">
+            最終更新日: <time datetime="2026-10-29">2026年10月29日</time>
+          </p>
+        </header>
 
         <p class="text-sm">
           noton2（以下「<dfn>本サービス</dfn>」）は、利用者のプライバシーを尊重し、安心してご利用いただけるよう情報の適切な保護・管理に努めます。本ポリシー（以下「<dfn>本ポリシー</dfn>」）では、本サービスにおける情報の取り扱い方針について説明します。
@@ -543,7 +564,7 @@ pages.get('/privacy', (c) => {
             6. お問い合わせ
           </h2>
           <p class="text-sm">
-            本ポリシーまたは本サービスに関するご質問・不具合報告・データ削除等のご要望は、公式リポジトリ（GitHub Issue / Discussions）よりご連絡ください。
+            本ポリシーまたは本サービスに関するご質問・不具合報告・データ削除等のご要望は、<address class="not-italic inline"><a href="https://github.com/zonuexe/noton2/issues" target="_blank" rel="external noopener noreferrer" class="text-rose-600 hover:underline">公式リポジトリ（GitHub Issue / Discussions）</a></address>よりご連絡ください。
           </p>
         </section>
 
@@ -556,7 +577,7 @@ pages.get('/privacy', (c) => {
           </p>
         </section>
       </div>
-    </div>,
+    </article>,
     {
       title: 'プライバシーポリシー',
       description: 'noton2 のプライバシーポリシーです。利用者のプライバシー保護と情報の取り扱いについて説明しています。',

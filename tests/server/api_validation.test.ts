@@ -481,7 +481,10 @@ describe('server/api - 入力バリデーションと認可チェック', () => 
       expect(html).toContain('テスト作成イベント')
       expect(html).toContain('開催決定')
       expect(html).toContain('【本番】')
-      expect(html).toContain('19:00〜21:00')
+      expect(html).toContain('class="dt-start"')
+      expect(html).toContain('datetime="2026-11-10T19:00"')
+      expect(html).toContain('class="dt-end"')
+      expect(html).toContain('datetime="2026-11-10T21:00"')
       expect(html).toContain('/events/test-ev-1')
       // ヘッダーのリンク先が /mypage であること
       expect(html).toContain('href="/mypage"')

@@ -131,18 +131,24 @@ export const MatrixTable = defineVaporComponent({
     }
 
     return (
-      <div class="bg-white rounded-2xl border border-stone-200 shadow-md overflow-hidden">
+      <section
+        aria-labelledby="matrix-table-heading"
+        class="bg-white rounded-2xl border border-stone-200 shadow-md overflow-hidden"
+      >
         {/* 灰色のタイトルバー (tonton スタイル) */}
-        <div class="bg-[#9c9c9c] px-4 py-2.5 flex items-center gap-2.5 shadow-xs">
+        <header class="bg-[#9c9c9c] px-4 py-2.5 flex items-center gap-2.5 shadow-xs">
           <div class="w-6 h-6 rounded-md bg-[#f06292] flex items-center justify-center shrink-0 shadow-2xs">
-            <svg class="w-4 h-4 fill-white" viewBox="0 0 24 24">
+            <svg class="w-4 h-4 fill-white" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
             </svg>
           </div>
-          <h2 class="text-white font-bold text-sm sm:text-base tracking-wide font-['M_PLUS_Rounded_1c']">
+          <h2
+            id="matrix-table-heading"
+            class="text-white font-bold text-sm sm:text-base tracking-wide font-['M_PLUS_Rounded_1c']"
+          >
             みんなの予定
           </h2>
-        </div>
+        </header>
 
         {/* サブ説明文 */}
         <div class="px-4 py-2.5 bg-white border-b border-stone-100 text-xs sm:text-[13px] text-stone-700">
@@ -191,9 +197,13 @@ export const MatrixTable = defineVaporComponent({
                                   {dayTitle}
                                 </span>
                               ) : null}
-                              <span class="truncate" title={dayTitle ? `${dayTitle} (${formatDateLabel(dateStr)})` : formatDateLabel(dateStr)}>
+                              <time
+                                datetime={dateStr}
+                                class="truncate"
+                                title={dayTitle ? `${dayTitle} (${formatDateLabel(dateStr)})` : formatDateLabel(dateStr)}
+                              >
                                 {formatDateLabel(dateStr)}
-                              </span>
+                              </time>
                             </div>
                             {isOrganizer.value ? (
                               <button
@@ -223,7 +233,9 @@ export const MatrixTable = defineVaporComponent({
                                   }`}
                                   title={`${hour}:00`}
                                 >
-                                  <span class="leading-none pt-1">{hour}</span>
+                                  <time datetime={`${dateStr}T${hour}:00`} class="leading-none pt-1">
+                                    {hour}
+                                  </time>
                                   <span class="w-[1px] h-[3px] bg-stone-300"></span>
                                 </div>
                               )
@@ -425,27 +437,30 @@ export const MatrixTable = defineVaporComponent({
 
           {/* コメント一覧カード */}
           {props.event.participants.some((p) => p.comment) ? (
-            <div class="bg-stone-50 rounded-xl p-3 sm:p-4 border border-stone-200 space-y-2 mt-4">
-              <h3 class="text-xs font-bold text-stone-700 flex items-center gap-1.5">
-                <span>💬</span> 参加者からのコメント・連絡事項
+            <aside
+              aria-labelledby="comments-heading"
+              class="bg-stone-50 rounded-xl p-3 sm:p-4 border border-stone-200 space-y-2 mt-4"
+            >
+              <h3 id="comments-heading" class="text-xs font-bold text-stone-700 flex items-center gap-1.5">
+                <span aria-hidden="true">💬</span> 参加者からのコメント・連絡事項
               </h3>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                 {props.event.participants
                   .filter((p) => p.comment)
                   .map((p) => (
-                    <div
+                    <blockquote
                       key={`comm-${p.id}`}
-                      class="bg-white p-2.5 rounded-lg border border-stone-200 shadow-2xs flex items-start gap-2"
+                      class="bg-white p-2.5 rounded-lg border border-stone-200 shadow-2xs flex items-start gap-2 m-0"
                     >
-                      <span class="font-bold text-stone-800 shrink-0">{p.name}:</span>
+                      <cite class="not-italic font-bold text-stone-800 shrink-0">{p.name}:</cite>
                       <span class="text-stone-600 break-words">{p.comment}</span>
-                    </div>
+                    </blockquote>
                   ))}
               </div>
-            </div>
+            </aside>
           ) : null}
         </div>
-      </div>
+      </section>
     )
   },
 })

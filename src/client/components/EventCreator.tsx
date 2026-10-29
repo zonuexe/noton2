@@ -480,22 +480,22 @@ export const EventCreator = defineVaporComponent({
       <div>
         {createdResult.value ? (
           /* 作成完了画面 */
-          <div class="max-w-2xl mx-auto bg-white rounded-3xl p-6 md:p-10 border border-stone-200 shadow-xl shadow-stone-100/50 space-y-8 animate-fade-in">
-            <div class="text-center space-y-3">
-              <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-rose-100 text-3xl">
+          <article class="max-w-2xl mx-auto bg-white rounded-3xl p-6 md:p-10 border border-stone-200 shadow-xl shadow-stone-100/50 space-y-8 animate-fade-in">
+            <header class="text-center space-y-3">
+              <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-rose-100 text-3xl" aria-hidden="true">
                 🎉
               </div>
               <h1 class="text-2xl md:text-3xl font-extrabold text-stone-900 font-['M_PLUS_Rounded_1c']">
                 日程調整表を作成しました！
               </h1>
               <p class="text-stone-600 text-sm">以下のURLを参加メンバーに共有してください。</p>
-            </div>
+            </header>
 
             {/* 参加者用共有URL */}
             <div class="bg-rose-50/70 p-5 rounded-2xl border border-rose-200 space-y-3">
               <div class="flex items-center justify-between">
                 <span class="text-xs font-bold uppercase tracking-wider text-rose-800 flex items-center gap-1.5">
-                  <span>🔗</span> 参加者に送るURL
+                  <span aria-hidden="true">🔗</span> 参加者に送るURL
                 </span>
                 <span class="text-xs text-rose-600 font-medium">LINEやSlackで共有</span>
               </div>
@@ -511,7 +511,7 @@ export const EventCreator = defineVaporComponent({
                   onClick={() =>
                     copyToClipboard(`${getOrigin()}/events/${createdResult.value!.id}`, 'share')
                   }
-                  class="whitespace-nowrap px-4 py-2 bg-rose-500 hover:bg-rose-600 active:bg-rose-700 text-white text-sm font-bold rounded-xl transition shadow-sm"
+                  class="whitespace-nowrap px-4 py-2 bg-rose-500 hover:bg-rose-600 active:bg-rose-700 text-white text-sm font-bold rounded-xl transition shadow-sm cursor-pointer"
                 >
                   {isCopiedShareUrl.value ? 'コピー完了！' : 'URLをコピー'}
                 </button>
@@ -522,7 +522,7 @@ export const EventCreator = defineVaporComponent({
             <div class="bg-amber-50/60 p-5 rounded-2xl border border-amber-200 space-y-3">
               <div class="flex items-center justify-between">
                 <span class="text-xs font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
-                  <span>🔑</span> 主催者管理について
+                  <span aria-hidden="true">🔑</span> 主催者管理について
                 </span>
                 <span class="text-xs text-amber-700 font-bold bg-amber-100 px-2 py-0.5 rounded-full">
                   GitHubアカウント連携済み
@@ -551,7 +551,7 @@ export const EventCreator = defineVaporComponent({
                         'admin'
                       )
                     }
-                    class="whitespace-nowrap px-3 py-2 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white text-xs font-bold rounded-xl transition shadow-sm"
+                    class="whitespace-nowrap px-3 py-2 bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white text-xs font-bold rounded-xl transition shadow-sm cursor-pointer"
                   >
                     {isCopiedAdminUrl.value ? 'コピー完了！' : '管理URLコピー'}
                   </button>
@@ -559,7 +559,7 @@ export const EventCreator = defineVaporComponent({
               </div>
             </div>
 
-            <div class="pt-4 flex flex-col sm:flex-row gap-3">
+            <nav aria-label="作成完了アクション" class="pt-4 flex flex-col sm:flex-row gap-3">
               <a
                 href={`/events/${createdResult.value.id}`}
                 class="w-full text-center px-6 py-3.5 bg-rose-500 hover:bg-rose-600 text-white font-bold rounded-xl shadow-md transition"
@@ -568,23 +568,24 @@ export const EventCreator = defineVaporComponent({
               </a>
               <a
                 href="/"
+                rel="home"
                 class="w-full text-center px-6 py-3.5 bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold rounded-xl transition"
               >
                 トップに戻る
               </a>
-            </div>
-          </div>
+            </nav>
+          </article>
         ) : (
           /* イベント作成フォーム */
-          <div class="max-w-3xl mx-auto space-y-8">
-            <div class="text-center space-y-2">
+          <article class="max-w-3xl mx-auto space-y-8">
+            <header class="text-center space-y-2">
               <h1 class="text-2xl md:text-3xl font-extrabold text-stone-900 font-['M_PLUS_Rounded_1c']">
                 日程調整表を作る
               </h1>
               <p class="text-stone-600 text-sm">
                 日付と時間帯を選ぶだけで、誰でも直感的に回答できるタイムラインを作成します。
               </p>
-            </div>
+            </header>
 
             {/* 未ログイン時の案内カード */}
             {!user.value ? (
@@ -1105,7 +1106,7 @@ export const EventCreator = defineVaporComponent({
                 </p>
               </div>
             </div>
-          </div>
+          </article>
         )}
       </div>
     )
