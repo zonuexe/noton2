@@ -382,5 +382,28 @@ describe('server/api - 入力バリデーションと認可チェック', () => 
       const data = (await res.json()) as any
       expect(data.error).toBe('終了時刻は開始時刻より後に設定してください')
     })
+
+    it('日程名が50文字を超える場合、400 エラーを返すこと', async () => {
+      const app = createApp(null)
+
+      const res = await app.request('/api/events/test-event-id/slots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slots: [
+            {
+              slotDate: '2026-10-29',
+              startTime: '10:00',
+              endTime: '12:00',
+              dateTitle: 'あ'.repeat(51),
+            },
+          ],
+        }),
+      })
+
+      expect(res.status).toBe(400)
+      const data = (await res.json()) as any
+      expect(data.error).toBe('日程の名称は50文字以内で入力してください')
+    })
   })
 })

@@ -164,7 +164,12 @@ export async function createEvent(
   // スロットの重複を排除し、トントン24時間軸でソートしてから保存
   if (input.slots && input.slots.length > 0) {
     const seen = new Set<string>()
-    const uniqueSlots: Array<{ slotDate: string; startTime: string; endTime: string }> = []
+    const uniqueSlots: Array<{
+      slotDate: string
+      startTime: string
+      endTime: string
+      dateTitle?: string | null
+    }> = []
     for (const slot of input.slots) {
       const key = `${slot.slotDate}_${slot.startTime}_${slot.endTime}`
       if (seen.has(key)) continue
@@ -180,10 +185,18 @@ export async function createEvent(
       statements.push(
         db
           .prepare(
-            `INSERT INTO time_slots (id, event_id, slot_date, start_time, end_time, sort_order)
-             VALUES (?, ?, ?, ?, ?, ?)`
+            `INSERT INTO time_slots (id, event_id, slot_date, start_time, end_time, date_title, sort_order)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`
           )
-          .bind(slotId, eventId, slot.slotDate, slot.startTime, slot.endTime, idx)
+          .bind(
+            slotId,
+            eventId,
+            slot.slotDate,
+            slot.startTime,
+            slot.endTime,
+            slot.dateTitle?.trim() || null,
+            idx
+          )
       )
     }
   }
@@ -257,7 +270,7 @@ export async function getEventById(
   // スロット取得 (日付、開始時刻順で厳密に並び替え)
   const slotRows = await db
     .prepare(
-      `SELECT id, event_id, slot_date, start_time, end_time, sort_order
+      `SELECT id, event_id, slot_date, start_time, end_time, date_title, sort_order
        FROM time_slots
        WHERE event_id = ?
        ORDER BY slot_date ASC, start_time ASC, sort_order ASC`
@@ -269,6 +282,7 @@ export async function getEventById(
       slot_date: string
       start_time: string
       end_time: string
+      date_title: string | null
       sort_order: number
     }>()
 
@@ -279,6 +293,7 @@ export async function getEventById(
       slotDate: row.slot_date,
       startTime: row.start_time,
       endTime: row.end_time,
+      dateTitle: row.date_title || null,
       sortOrder: row.sort_order,
     }))
     .sort(compareSlots)
@@ -369,7 +384,12 @@ export async function getEventById(
 export async function addSlotsToEvent(
   db: D1Database,
   eventId: string,
-  newSlots: Array<{ slotDate: string; startTime: string; endTime: string }>,
+  newSlots: Array<{
+    slotDate: string
+    startTime: string
+    endTime: string
+    dateTitle?: string | null
+  }>,
   adminToken?: string,
   currentUserId?: string | null
 ): Promise<{ addedCount: number }> {
@@ -408,10 +428,18 @@ export async function addSlotsToEvent(
     statements.push(
       db
         .prepare(
-          `INSERT INTO time_slots (id, event_id, slot_date, start_time, end_time, sort_order)
-           VALUES (?, ?, ?, ?, ?, ?)`
+          `INSERT INTO time_slots (id, event_id, slot_date, start_time, end_time, date_title, sort_order)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`
         )
-        .bind(slotId, eventId, s.slotDate, s.startTime, s.endTime, existingSet.size - 1)
+        .bind(
+          slotId,
+          eventId,
+          s.slotDate,
+          s.startTime,
+          s.endTime,
+          s.dateTitle?.trim() || null,
+          existingSet.size - 1
+        )
     )
     addedCount++
   }

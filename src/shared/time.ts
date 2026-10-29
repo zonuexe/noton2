@@ -164,25 +164,50 @@ export function splitIntoSlots(
   return result
 }
 
+// 日程名（日付ラベル）の入力サジェスト候補
+export const DATE_TITLE_SUGGESTIONS = [
+  'DAY 0',
+  'DAY 1',
+  'DAY 2',
+  'DAY 3',
+  '前夜祭',
+  '本祭',
+  '後夜祭',
+  '設営',
+  '本番',
+  '会場撤収',
+  '予備日',
+] as const
+
 // 後方互換 alias
 export const splitIntoHourlySlots = (s: string, e: string) => splitIntoSlots(s, e, 60)
 
 // 特定の日付のスロットを指定した開始〜終了時間帯で置き換える（他日程のスロットはそのまま維持）
 export function replaceSlotsForDate(
-  currentSlots: Array<{ slotDate: string; startTime: string; endTime: string }>,
+  currentSlots: Array<{
+    slotDate: string
+    startTime: string
+    endTime: string
+    dateTitle?: string | null
+  }>,
   dateStr: string,
   startTime: string,
   endTime: string,
-  intervalMinutes: number = 60
-): Array<{ slotDate: string; startTime: string; endTime: string }> {
+  intervalMinutes: number = 60,
+  dateTitle?: string | null
+): Array<{ slotDate: string; startTime: string; endTime: string; dateTitle?: string | null }> {
   if (!isValidSlotTimeRange(startTime, endTime)) {
     return currentSlots
   }
+  const existingDaySlot = currentSlots.find((s) => s.slotDate === dateStr)
+  const resolvedTitle = dateTitle !== undefined ? dateTitle : existingDaySlot?.dateTitle || null
+
   const otherDateSlots = currentSlots.filter((s) => s.slotDate !== dateStr)
   const newDaySlots = splitIntoSlots(startTime, endTime, intervalMinutes).map((s) => ({
     slotDate: dateStr,
     startTime: s.start,
     endTime: s.end,
+    dateTitle: resolvedTitle,
   }))
   return [...otherDateSlots, ...newDaySlots].sort(compareSlots)
 }

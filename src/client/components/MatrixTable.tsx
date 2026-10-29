@@ -200,6 +200,7 @@ export const MatrixTable = defineVaporComponent({
             <div class="space-y-3">
               {uniqueDates.value.map((dateStr) => {
                 const dateSlots = props.event.slots.filter((s) => s.slotDate === dateStr)
+                const dayTitle = dateSlots.find((s) => s.dateTitle)?.dateTitle
 
                 return (
                   <div
@@ -212,9 +213,16 @@ export const MatrixTable = defineVaporComponent({
                         <div class="flex items-center gap-2">
                           {/* 左側: 日付ボックス */}
                           <div class="w-28 sm:w-32 md:w-36 shrink-0 h-6 sm:h-7 border border-stone-300 rounded bg-white px-2 py-0.5 text-xs font-bold text-stone-800 flex items-center justify-between">
-                            <span class="truncate font-['M_PLUS_Rounded_1c']">
-                              {formatDateLabel(dateStr)}
-                            </span>
+                            <div class="flex items-center gap-1 truncate font-['M_PLUS_Rounded_1c'] min-w-0">
+                              {dayTitle ? (
+                                <span class="px-1 py-0.2 bg-rose-100 text-rose-700 text-[10px] rounded font-extrabold shrink-0 max-w-[50px] truncate" title={dayTitle}>
+                                  {dayTitle}
+                                </span>
+                              ) : null}
+                              <span class="truncate" title={dayTitle ? `${dayTitle} (${formatDateLabel(dateStr)})` : formatDateLabel(dateStr)}>
+                                {formatDateLabel(dateStr)}
+                              </span>
+                            </div>
                             {isOrganizer.value ? (
                               <button
                                 type="button"

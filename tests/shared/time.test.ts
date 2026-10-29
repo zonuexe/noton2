@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   TIME_PRESETS,
+  DATE_TITLE_SUGGESTIONS,
   splitIntoSlots,
   replaceSlotsForDate,
   getSlotsForHour,
@@ -241,23 +242,38 @@ describe('shared/time - 日時・スロット計算ロジック', () => {
       })
     })
 
-    it('replaceSlotsForDate: 複数日イベントで日ごとに異なる時間帯（例: 初日15-20時, 2日目08-20時, 3日目08-13時）を個別に設定できること', () => {
-      let slots: Array<{ slotDate: string; startTime: string; endTime: string }> = []
-      // 初日: 15:00〜20:00 (5コマ)
-      slots = replaceSlotsForDate(slots, '2026-11-01', '15:00', '20:00', 60)
-      // 2日目: 08:00〜20:00 (12コマ)
-      slots = replaceSlotsForDate(slots, '2026-11-02', '08:00', '20:00', 60)
-      // 3日目: 08:00〜13:00 (5コマ)
-      slots = replaceSlotsForDate(slots, '2026-11-03', '08:00', '13:00', 60)
+    it('DATE_TITLE_SUGGESTIONS: DAY 0 や前夜祭、会場撤収などのサジェスト候補が含まれること', () => {
+      expect(DATE_TITLE_SUGGESTIONS).toContain('DAY 0')
+      expect(DATE_TITLE_SUGGESTIONS).toContain('前夜祭')
+      expect(DATE_TITLE_SUGGESTIONS).toContain('会場撤収')
+    })
+
+    it('replaceSlotsForDate: 複数日イベントで日ごとに異なる時間帯（例: 初日15-20時, 2日目08-20時, 3日目08-13時）および日程名（DAY 0, 前夜祭, 会場撤収）を個別に設定できること', () => {
+      let slots: Array<{
+        slotDate: string
+        startTime: string
+        endTime: string
+        dateTitle?: string | null
+      }> = []
+      // 初日: 15:00〜20:00 (5コマ) 「前夜祭」
+      slots = replaceSlotsForDate(slots, '2026-11-01', '15:00', '20:00', 60, '前夜祭')
+      // 2日目: 08:00〜20:00 (12コマ) 「本祭 DAY 1」
+      slots = replaceSlotsForDate(slots, '2026-11-02', '08:00', '20:00', 60, '本祭 DAY 1')
+      // 3日目: 08:00〜13:00 (5コマ) 「会場撤収」
+      slots = replaceSlotsForDate(slots, '2026-11-03', '08:00', '13:00', 60, '会場撤収')
 
       expect(slots.filter((s) => s.slotDate === '2026-11-01')).toHaveLength(5)
+      expect(slots.find((s) => s.slotDate === '2026-11-01')?.dateTitle).toBe('前夜祭')
       expect(slots.filter((s) => s.slotDate === '2026-11-02')).toHaveLength(12)
+      expect(slots.find((s) => s.slotDate === '2026-11-02')?.dateTitle).toBe('本祭 DAY 1')
       expect(slots.filter((s) => s.slotDate === '2026-11-03')).toHaveLength(5)
+      expect(slots.find((s) => s.slotDate === '2026-11-03')?.dateTitle).toBe('会場撤収')
       expect(slots).toHaveLength(22)
 
-      // 初日の時間帯だけを 16:00〜20:00 (4コマ) に変更しても、2日目・3日目は影響を受けないこと
+      // 初日の時間帯だけを 16:00〜20:00 (4コマ) に変更しても、日程名「前夜祭」および2日目・3日目は影響を受けないこと
       slots = replaceSlotsForDate(slots, '2026-11-01', '16:00', '20:00', 60)
       expect(slots.filter((s) => s.slotDate === '2026-11-01')).toHaveLength(4)
+      expect(slots.find((s) => s.slotDate === '2026-11-01')?.dateTitle).toBe('前夜祭')
       expect(slots.filter((s) => s.slotDate === '2026-11-02')).toHaveLength(12)
       expect(slots.filter((s) => s.slotDate === '2026-11-03')).toHaveLength(5)
       expect(slots).toHaveLength(21)

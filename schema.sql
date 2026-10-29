@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS time_slots (
     slot_date TEXT NOT NULL,       -- 'YYYY-MM-DD'
     start_time TEXT NOT NULL,      -- 'HH:mm'
     end_time TEXT NOT NULL,        -- 'HH:mm'
+    date_title TEXT,               -- 日程の名称 (例: 'DAY 0', '前夜祭', '会場撤収')
     sort_order INTEGER DEFAULT 0,
     FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE
 );

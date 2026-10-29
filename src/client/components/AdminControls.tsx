@@ -6,6 +6,7 @@ import { defineVaporComponent, ref } from 'vue'
 import type { EventDetail } from '@/shared/types'
 import {
   TIME_PRESETS,
+  DATE_TITLE_SUGGESTIONS,
   splitIntoSlots,
   formatDateLabel,
   getTodayISO,
@@ -40,6 +41,7 @@ export const AdminControls = defineVaporComponent({
 
     // 新規スロット追加用フォーム
     const newSlotDate = ref(getTodayISO())
+    const newDateTitle = ref('')
     const newStartTime = ref('10:00')
     const newEndTime = ref('19:00')
 
@@ -105,6 +107,7 @@ export const AdminControls = defineVaporComponent({
           slotDate: newSlotDate.value,
           startTime: s.start,
           endTime: s.end,
+          dateTitle: newDateTitle.value.trim() || undefined,
         }))
 
         const res = await fetch(`/api/events/${props.event.id}/slots`, {
@@ -214,7 +217,7 @@ export const AdminControls = defineVaporComponent({
 皆さま、日程調整へのご協力ありがとうございました！
 開催日時が以下の通り決定いたしました。
 
-🎉 確定日時: ${formatDateLabel(confirmedSlot.slotDate)} ${confirmedSlot.startTime}〜${confirmedSlot.endTime}
+🎉 確定日時: ${confirmedSlot.dateTitle ? `【${confirmedSlot.dateTitle}】` : ''}${formatDateLabel(confirmedSlot.slotDate)} ${confirmedSlot.startTime}〜${confirmedSlot.endTime}
 👤 主催者: ${props.event.organizerName}
 ▼ 詳細・回答一覧はこちら
 ${shareUrl}
@@ -393,8 +396,15 @@ ${shareUrl}
                         : 'bg-stone-50 hover:bg-amber-50 border-stone-200 hover:border-amber-300 text-stone-800'
                     }`}
                   >
-                    <div class="flex items-center justify-between gap-1">
-                      <span class="font-bold">{formatDateLabel(slot.slotDate)}</span>
+                    <div class="flex items-center justify-between gap-1 flex-wrap">
+                      <div class="flex items-center gap-1 font-bold">
+                        {slot.dateTitle ? (
+                          <span class="px-1.5 py-0.5 bg-rose-100 text-rose-800 text-[10px] rounded font-extrabold">
+                            {slot.dateTitle}
+                          </span>
+                        ) : null}
+                        <span>{formatDateLabel(slot.slotDate)}</span>
+                      </div>
                       <span
                         class={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
                           isConfirmed
@@ -432,7 +442,7 @@ ${shareUrl}
               </span>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
               <div>
                 <label class="block text-xs font-bold text-stone-700 mb-1">追加する日付</label>
                 <input
@@ -440,6 +450,17 @@ ${shareUrl}
                   value={newSlotDate.value}
                   onChange={(e: any) => (newSlotDate.value = e.target.value)}
                   class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-xs outline-none"
+                />
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-stone-700 mb-1">日程名（任意）</label>
+                <input
+                  type="text"
+                  placeholder="例: DAY 0、前夜祭"
+                  value={newDateTitle.value}
+                  onInput={(e: any) => (newDateTitle.value = e.target.value)}
+                  class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-xs outline-none font-medium"
                 />
               </div>
 
@@ -462,6 +483,25 @@ ${shareUrl}
                   class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-xs outline-none"
                 />
               </div>
+            </div>
+
+            {/* 日程名候補サジェスト */}
+            <div class="flex items-center gap-1 flex-wrap text-[10px]">
+              <span class="text-stone-400 font-bold">日程名候補:</span>
+              {DATE_TITLE_SUGGESTIONS.map((sug) => (
+                <button
+                  key={sug}
+                  type="button"
+                  onClick={() => (newDateTitle.value = sug)}
+                  class={`px-1.5 py-0.5 rounded transition cursor-pointer border ${
+                    newDateTitle.value === sug
+                      ? 'bg-amber-500 text-white border-amber-600 font-bold'
+                      : 'bg-stone-50 text-stone-600 border-stone-200 hover:bg-amber-50'
+                  }`}
+                >
+                  {sug}
+                </button>
+              ))}
             </div>
 
             {/* プリセット */}

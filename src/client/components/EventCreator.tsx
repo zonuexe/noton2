@@ -6,6 +6,7 @@ import { defineVaporComponent, ref, computed } from 'vue'
 import type { CreateEventInput, User } from '@/shared/types'
 import {
   TIME_PRESETS,
+  DATE_TITLE_SUGGESTIONS,
   splitIntoSlots,
   replaceSlotsForDate,
   formatDateLabel,
@@ -44,9 +45,9 @@ export const EventCreator = defineVaporComponent({
     const todayStr = getTodayISO()
     const selectedDates = ref<string[]>([todayStr])
 
-    // 日付ごとの開始〜終了時刻設定 (複数日で日ごとに異なる時間帯を設定しやすくする)
-    const dateRanges = ref<Record<string, { start: string; end: string }>>({
-      [todayStr]: { start: '10:00', end: '19:00' },
+    // 日付ごとの開始〜終了時刻・日程名設定 (複数日で日ごとに異なる時間帯や名称を設定しやすくする)
+    const dateRanges = ref<Record<string, { start: string; end: string; title?: string }>>({
+      [todayStr]: { start: '10:00', end: '19:00', title: '' },
     })
 
     // カスタム一括設定・新規選択日デフォルト用の時間
@@ -65,9 +66,14 @@ export const EventCreator = defineVaporComponent({
       })
     )
 
-    const slots = ref<Array<{ slotDate: string; startTime: string; endTime: string }>>(
-      initialHourly
-    )
+    const slots = ref<
+      Array<{
+        slotDate: string
+        startTime: string
+        endTime: string
+        dateTitle?: string | null
+      }>
+    >(initialHourly)
 
     const isSubmitting = ref(false)
     const errorMessage = ref('')
@@ -186,23 +192,41 @@ export const EventCreator = defineVaporComponent({
           : '19:00'
         dateRanges.value = {
           ...dateRanges.value,
-          [dateStr]: { start: defaultStart, end: defaultEnd },
+          [dateStr]: { start: defaultStart, end: defaultEnd, title: '' },
         }
         slots.value = replaceSlotsForDate(
           slots.value,
           dateStr,
           defaultStart,
           defaultEnd,
-          slotIntervalMinutes.value
+          slotIntervalMinutes.value,
+          ''
         )
       }
     }
 
-    // 特定日の時間帯（開始〜終了）を個別に変更
-    const updateSingleDateRange = (dateStr: string, start: string, end: string) => {
+    // 特定日の日程名（例: DAY 0, 前夜祭, 会場撤収）を変更
+    const updateDateTitle = (dateStr: string, title: string) => {
+      const current = dateRanges.value[dateStr] || {
+        start: customStartTime.value,
+        end: customEndTime.value,
+      }
       dateRanges.value = {
         ...dateRanges.value,
-        [dateStr]: { start, end },
+        [dateStr]: { ...current, title },
+      }
+      const trimmed = title.trim() || null
+      slots.value = slots.value.map((s) =>
+        s.slotDate === dateStr ? { ...s, dateTitle: trimmed } : s
+      )
+    }
+
+    // 特定日の時間帯（開始〜終了）を個別に変更
+    const updateSingleDateRange = (dateStr: string, start: string, end: string) => {
+      const current = dateRanges.value[dateStr] || {}
+      dateRanges.value = {
+        ...dateRanges.value,
+        [dateStr]: { ...current, start, end },
       }
       if (!isValidSlotTimeRange(start, end)) {
         errorMessage.value = `${formatDateLabel(dateStr)} の終了時刻は開始時刻より後に設定してください`
@@ -214,7 +238,8 @@ export const EventCreator = defineVaporComponent({
         dateStr,
         start,
         end,
-        slotIntervalMinutes.value
+        slotIntervalMinutes.value,
+        current.title
       )
     }
 
@@ -238,14 +263,22 @@ export const EventCreator = defineVaporComponent({
       }
 
       // 日付ごとに既存スロットの連続する時間帯ブロックを抽出して再分割
-      const byDate = new Map<string, Array<{ startTime: string; endTime: string }>>()
+      const byDate = new Map<
+        string,
+        Array<{ startTime: string; endTime: string; dateTitle?: string | null }>
+      >()
       for (const s of slots.value) {
         const list = byDate.get(s.slotDate) || []
-        list.push({ startTime: s.startTime, endTime: s.endTime })
+        list.push({ startTime: s.startTime, endTime: s.endTime, dateTitle: s.dateTitle })
         byDate.set(s.slotDate, list)
       }
 
-      const nextSlots: Array<{ slotDate: string; startTime: string; endTime: string }> = []
+      const nextSlots: Array<{
+        slotDate: string
+        startTime: string
+        endTime: string
+        dateTitle?: string | null
+      }> = []
       for (const [dateStr, daySlots] of byDate.entries()) {
         // 開始時刻順に並べて隣接スロットを結合
         const sorted = [...daySlots].sort((a, b) => a.startTime.localeCompare(b.startTime))
@@ -259,6 +292,7 @@ export const EventCreator = defineVaporComponent({
           }
         }
 
+        const dayTitle = dateRanges.value[dateStr]?.title || daySlots[0]?.dateTitle || null
         for (const range of mergedRanges) {
           const resplit = splitIntoSlots(range.start, range.end, interval)
           for (const slot of resplit) {
@@ -266,6 +300,7 @@ export const EventCreator = defineVaporComponent({
               slotDate: dateStr,
               startTime: slot.start,
               endTime: slot.end,
+              dateTitle: dayTitle,
             })
           }
         }
@@ -288,13 +323,15 @@ export const EventCreator = defineVaporComponent({
       const nextRanges = { ...dateRanges.value }
       let nextSlots = [...slots.value]
       selectedDates.value.forEach((d) => {
-        nextRanges[d] = { start: preset.start, end: preset.end }
+        const prevTitle = nextRanges[d]?.title || ''
+        nextRanges[d] = { start: preset.start, end: preset.end, title: prevTitle }
         nextSlots = replaceSlotsForDate(
           nextSlots,
           d,
           preset.start,
           preset.end,
-          slotIntervalMinutes.value
+          slotIntervalMinutes.value,
+          prevTitle
         )
       })
       dateRanges.value = nextRanges
@@ -887,10 +924,15 @@ export const EventCreator = defineVaporComponent({
                           >
                             <div class="flex flex-wrap items-center justify-between gap-2">
                               {/* 日付ラベル */}
-                              <div class="flex items-center gap-2">
+                              <div class="flex items-center gap-2 flex-wrap">
                                 <span class="px-2 py-0.5 bg-rose-100 text-rose-700 rounded-md text-[11px] font-extrabold">
                                   {idx + 1}日目
                                 </span>
+                                {range.title ? (
+                                  <span class="px-2 py-0.5 bg-rose-500 text-white rounded text-[11px] font-extrabold shadow-2xs">
+                                    {range.title}
+                                  </span>
+                                ) : null}
                                 <span class="font-bold text-sm text-stone-900 font-['M_PLUS_Rounded_1c']">
                                   {formatDateLabel(dateStr)}
                                 </span>
@@ -928,6 +970,41 @@ export const EventCreator = defineVaporComponent({
                                 >
                                   ✕
                                 </button>
+                              </div>
+                            </div>
+
+                            {/* 日程名（名前付け）入力 & サジェスト */}
+                            <div class="flex flex-col sm:flex-row sm:items-center gap-2 pt-1 border-t border-rose-200/50">
+                              <div class="flex items-center gap-1.5 shrink-0">
+                                <span class="text-[11px] font-bold text-stone-600">日程名:</span>
+                                <input
+                                  type="text"
+                                  placeholder="例: DAY 0、前夜祭、会場撤収"
+                                  aria-label={`${formatDateLabel(dateStr)}の日程名`}
+                                  value={range.title || ''}
+                                  onInput={(e: any) => updateDateTitle(dateStr, e.target.value)}
+                                  class="w-44 bg-white border border-stone-300 focus:border-rose-400 rounded-lg px-2.5 py-1 text-xs text-stone-800 outline-none font-medium"
+                                />
+                              </div>
+                              <div class="flex items-center gap-1 flex-wrap">
+                                <span class="text-[10px] text-stone-400 font-bold">候補:</span>
+                                {DATE_TITLE_SUGGESTIONS.map((sug) => {
+                                  const isSelected = range.title === sug
+                                  return (
+                                    <button
+                                      key={`${dateStr}-${sug}`}
+                                      type="button"
+                                      onClick={() => updateDateTitle(dateStr, sug)}
+                                      class={`px-1.5 py-0.5 rounded text-[10px] font-bold transition cursor-pointer border ${
+                                        isSelected
+                                          ? 'bg-rose-500 text-white border-rose-500 shadow-2xs'
+                                          : 'bg-white text-stone-600 border-stone-200 hover:border-rose-300 hover:text-rose-700'
+                                      }`}
+                                    >
+                                      {sug}
+                                    </button>
+                                  )
+                                })}
                               </div>
                             </div>
 
@@ -984,7 +1061,8 @@ export const EventCreator = defineVaporComponent({
                               class="flex items-center justify-between bg-white border border-stone-200 px-2.5 py-1.5 rounded-lg text-xs shadow-2xs"
                             >
                               <div class="font-medium text-stone-800 truncate mr-1">
-                                <span class="font-bold text-[11px] text-stone-600 block">
+                                <span class="font-bold text-[11px] text-stone-600 block truncate">
+                                  {slot.dateTitle ? `[${slot.dateTitle}] ` : ''}
                                   {formatDateLabel(slot.slotDate)}
                                 </span>
                                 <span class="font-mono text-xs text-rose-600 font-bold">

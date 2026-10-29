@@ -380,6 +380,7 @@ export const AnswerForm = defineVaporComponent({
         <div class="space-y-4 select-none" onTouchmove={handleTouchMove}>
           {uniqueDates.value.map((dateStr) => {
             const dateSlots = props.event.slots.filter((s) => s.slotDate === dateStr)
+            const dayTitle = dateSlots.find((s) => s.dateTitle)?.dateTitle
 
             return (
               <div
@@ -387,8 +388,13 @@ export const AnswerForm = defineVaporComponent({
                 class="bg-stone-50/70 p-3 sm:p-4 rounded-2xl border border-stone-200 transition hover:border-stone-300"
               >
                 <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-2">
-                  <div class="font-bold text-sm text-stone-900 font-['M_PLUS_Rounded_1c']">
-                    {formatDateLabel(dateStr)}
+                  <div class="font-bold text-sm text-stone-900 font-['M_PLUS_Rounded_1c'] flex items-center gap-1.5 flex-wrap">
+                    {dayTitle ? (
+                      <span class="px-2 py-0.5 bg-rose-100 text-rose-700 text-xs rounded-md font-extrabold">
+                        {dayTitle}
+                      </span>
+                    ) : null}
+                    <span>{formatDateLabel(dateStr)}</span>
                   </div>
                   <div class="flex items-center gap-2">
                     <span class="text-[11px] text-stone-400">この日を:</span>

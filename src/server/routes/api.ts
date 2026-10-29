@@ -87,6 +87,11 @@ api.post('/events', async (c) => {
       if (!isValidSlotTimeRange(s.startTime, s.endTime)) {
         return c.json({ error: '終了時刻は開始時刻より後に設定してください' }, 400)
       }
+      if (s.dateTitle !== undefined && s.dateTitle !== null) {
+        if (typeof s.dateTitle !== 'string' || s.dateTitle.length > 50) {
+          return c.json({ error: '日程の名称は50文字以内で入力してください' }, 400)
+        }
+      }
     }
 
     const { id, adminToken } = await createEvent(c.env.DB, body, user.id)
@@ -122,7 +127,12 @@ api.post('/events/:id/slots', async (c) => {
     const eventId = c.req.param('id')
     const body = await c.req.json<{
       adminToken?: string
-      slots: Array<{ slotDate: string; startTime: string; endTime: string }>
+      slots: Array<{
+        slotDate: string
+        startTime: string
+        endTime: string
+        dateTitle?: string | null
+      }>
     }>()
     const currentUser = c.get('user')
 
@@ -143,6 +153,11 @@ api.post('/events/:id/slots', async (c) => {
       }
       if (!isValidSlotTimeRange(s.startTime, s.endTime)) {
         return c.json({ error: '終了時刻は開始時刻より後に設定してください' }, 400)
+      }
+      if (s.dateTitle !== undefined && s.dateTitle !== null) {
+        if (typeof s.dateTitle !== 'string' || s.dateTitle.length > 50) {
+          return c.json({ error: '日程の名称は50文字以内で入力してください' }, 400)
+        }
       }
     }
 

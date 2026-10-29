@@ -29,6 +29,7 @@ export interface TimeSlot {
   slotDate: string // 'YYYY-MM-DD'
   startTime: string // 'HH:mm'
   endTime: string // 'HH:mm'
+  dateTitle?: string | null // 日程の名称 (例: 'DAY 0', '前夜祭', '会場撤収')
   sortOrder: number
 }
 
@@ -79,6 +80,7 @@ export interface CreateEventInput {
     slotDate: string
     startTime: string
     endTime: string
+    dateTitle?: string | null
   }[]
 }
 

@@ -164,6 +164,35 @@ describe('server/db/client - 実 SQLite (schema.sql) を用いた統合テスト
     expect(event?.slots.map((s) => s.startTime)).toEqual(['19:00', '00:00', '01:00'])
   })
 
+  it('イベント作成時およびスロット追加時に日程名（dateTitle）が正しく保存・取得されること', async () => {
+    const { id, adminToken } = await createEvent(db, {
+      title: 'フェス日程調整',
+      organizerName: '実行委員会',
+      slots: [
+        { slotDate: '2026-10-29', startTime: '15:00', endTime: '20:00', dateTitle: '前夜祭' },
+        { slotDate: '2026-10-30', startTime: '09:00', endTime: '18:00', dateTitle: '本祭 DAY 1' },
+      ],
+    })
+
+    const ev = await getEventById(db, id, adminToken)
+    expect(ev?.slots[0].dateTitle).toBe('前夜祭')
+    expect(ev?.slots[1].dateTitle).toBe('本祭 DAY 1')
+
+    // スロット追加でも dateTitle が保存されること
+    await addSlotsToEvent(
+      db,
+      id,
+      [
+        { slotDate: '2026-10-31', startTime: '09:00', endTime: '12:00', dateTitle: '会場撤収' },
+      ],
+      adminToken
+    )
+
+    const evUpdated = await getEventById(db, id, adminToken)
+    const slotDay3 = evUpdated?.slots.find((s) => s.slotDate === '2026-10-31')
+    expect(slotDay3?.dateTitle).toBe('会場撤収')
+  })
+
   it('回答の登録・編集・重複slotId集約・不正slotId無視・参加者削除が正しく動作すること', async () => {
     const { id: eventId, adminToken } = await createEvent(db, {
       title: '回答テスト会議',

@@ -160,9 +160,16 @@ export const EventDetailApp = defineVaporComponent({
               <div class="text-xs font-bold uppercase tracking-wider opacity-90 flex items-center gap-1">
                 <span>🎉</span> 開催日時が決定しました！
               </div>
-              <div class="text-lg md:text-xl font-extrabold font-['M_PLUS_Rounded_1c']">
-                {formatDateLabel(confirmedSlot.value.slotDate)} {confirmedSlot.value.startTime}〜
-                {confirmedSlot.value.endTime}
+              <div class="text-lg md:text-xl font-extrabold font-['M_PLUS_Rounded_1c'] flex items-center gap-2 flex-wrap">
+                {confirmedSlot.value.dateTitle ? (
+                  <span class="px-2.5 py-0.5 bg-white/25 text-white rounded-lg text-sm font-bold backdrop-blur-xs shadow-2xs">
+                    {confirmedSlot.value.dateTitle}
+                  </span>
+                ) : null}
+                <span>
+                  {formatDateLabel(confirmedSlot.value.slotDate)} {confirmedSlot.value.startTime}〜
+                  {confirmedSlot.value.endTime}
+                </span>
               </div>
             </div>
           ) : null}
