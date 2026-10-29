@@ -4,7 +4,13 @@
 
 import { defineVaporComponent, ref } from 'vue'
 import type { EventDetail } from '@/shared/types'
-import { splitIntoSlots, formatDateLabel, getTodayISO, isValidSlotTimeRange } from '@/shared/time'
+import {
+  TIME_PRESETS,
+  splitIntoSlots,
+  formatDateLabel,
+  getTodayISO,
+  isValidSlotTimeRange,
+} from '@/shared/time'
 import { calculateSlotSummary } from '@/shared/state'
 
 export const AdminControls = defineVaporComponent({
@@ -49,13 +55,6 @@ export const AdminControls = defineVaporComponent({
       editDuration.value = props.event.durationMinutes
       editOrganizerName.value = props.event.organizerName
     }
-
-    const timePresets = [
-      { label: '日中 (10:00〜19:00)', start: '10:00', end: '19:00' },
-      { label: '終日 (09:00〜18:00)', start: '09:00', end: '18:00' },
-      { label: '午後 (13:00〜18:00)', start: '13:00', end: '18:00' },
-      { label: '夜 (18:00〜22:00)', start: '18:00', end: '22:00' },
-    ]
 
     // 日程確定 / 解除
     const handleConfirmSlot = async (slotId: string | null) => {
@@ -468,15 +467,15 @@ ${shareUrl}
             {/* プリセット */}
             <div class="flex flex-wrap gap-1.5 items-center">
               <span class="text-[11px] font-bold text-stone-500 mr-1">プリセット:</span>
-              {timePresets.map((p) => (
+              {TIME_PRESETS.map((p) => (
                 <button
-                  key={p.label}
+                  key={p.key}
                   type="button"
                   onClick={() => {
                     newStartTime.value = p.start
                     newEndTime.value = p.end
                   }}
-                  class="px-2.5 py-1 bg-stone-100 hover:bg-amber-100 text-stone-700 hover:text-amber-900 text-[11px] rounded-lg font-medium transition"
+                  class="px-2.5 py-1 bg-stone-100 hover:bg-amber-100 text-stone-700 hover:text-amber-900 text-[11px] rounded-lg font-medium transition cursor-pointer"
                 >
                   {p.label}
                 </button>

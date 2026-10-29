@@ -5,7 +5,9 @@
 import { defineVaporComponent, ref, computed } from 'vue'
 import type { CreateEventInput, User } from '@/shared/types'
 import {
+  TIME_PRESETS,
   splitIntoSlots,
+  replaceSlotsForDate,
   formatDateLabel,
   formatDateISO,
   getTodayISO,
@@ -42,18 +44,17 @@ export const EventCreator = defineVaporComponent({
     const todayStr = getTodayISO()
     const selectedDates = ref<string[]>([todayStr])
 
-    // 時間帯テンプレート
-    const timePresets = [
-      { label: '日中 (10:00〜19:00)', start: '10:00', end: '19:00' },
-      { label: '終日 (09:00〜18:00)', start: '09:00', end: '18:00' },
-      { label: '午後 (13:00〜18:00)', start: '13:00', end: '18:00' },
-      { label: '夜 (18:00〜22:00)', start: '18:00', end: '22:00' },
-      { label: '飲み会 (19:00〜23:00)', start: '19:00', end: '23:00' },
-    ]
+    // 日付ごとの開始〜終了時刻設定 (複数日で日ごとに異なる時間帯を設定しやすくする)
+    const dateRanges = ref<Record<string, { start: string; end: string }>>({
+      [todayStr]: { start: '10:00', end: '19:00' },
+    })
 
-    // カスタム追加用の時間
+    // カスタム一括設定・新規選択日デフォルト用の時間
     const customStartTime = ref('10:00')
     const customEndTime = ref('19:00')
+
+    // コマ単位の微調整リストの開閉状態
+    const isSlotDetailOpen = ref(false)
 
     // 初期候補枠 (10:00〜19:00 の 1時間刻み独立スロット)
     const initialHourly = splitIntoSlots('10:00', '19:00', slotIntervalMinutes.value).map(
@@ -172,30 +173,49 @@ export const EventCreator = defineVaporComponent({
       if (idx >= 0) {
         selectedDates.value = selectedDates.value.filter((d) => d !== dateStr)
         slots.value = slots.value.filter((s) => s.slotDate !== dateStr)
+        const nextRanges = { ...dateRanges.value }
+        delete nextRanges[dateStr]
+        dateRanges.value = nextRanges
       } else {
         selectedDates.value = [...selectedDates.value, dateStr].sort()
-        // 設定中の時間帯が有効な場合のみコマとして追加
-        if (isValidSlotTimeRange(customStartTime.value, customEndTime.value)) {
-          const slotsToAdd = splitIntoSlots(
-            customStartTime.value,
-            customEndTime.value,
-            slotIntervalMinutes.value
-          )
-          slotsToAdd.forEach((slot) => {
-            const exists = slots.value.some(
-              (s) => s.slotDate === dateStr && s.startTime === slot.start && s.endTime === slot.end
-            )
-            if (!exists) {
-              slots.value.push({
-                slotDate: dateStr,
-                startTime: slot.start,
-                endTime: slot.end,
-              })
-            }
-          })
-          sortSlots()
+        const defaultStart = isValidSlotTimeRange(customStartTime.value, customEndTime.value)
+          ? customStartTime.value
+          : '10:00'
+        const defaultEnd = isValidSlotTimeRange(customStartTime.value, customEndTime.value)
+          ? customEndTime.value
+          : '19:00'
+        dateRanges.value = {
+          ...dateRanges.value,
+          [dateStr]: { start: defaultStart, end: defaultEnd },
         }
+        slots.value = replaceSlotsForDate(
+          slots.value,
+          dateStr,
+          defaultStart,
+          defaultEnd,
+          slotIntervalMinutes.value
+        )
       }
+    }
+
+    // 特定日の時間帯（開始〜終了）を個別に変更
+    const updateSingleDateRange = (dateStr: string, start: string, end: string) => {
+      dateRanges.value = {
+        ...dateRanges.value,
+        [dateStr]: { start, end },
+      }
+      if (!isValidSlotTimeRange(start, end)) {
+        errorMessage.value = `${formatDateLabel(dateStr)} の終了時刻は開始時刻より後に設定してください`
+        return
+      }
+      errorMessage.value = ''
+      slots.value = replaceSlotsForDate(
+        slots.value,
+        dateStr,
+        start,
+        end,
+        slotIntervalMinutes.value
+      )
     }
 
     // 刻み幅の変更 (既存スロットの連続時間帯を維持して新しい刻み幅で再分割)
@@ -203,18 +223,17 @@ export const EventCreator = defineVaporComponent({
       slotIntervalMinutes.value = interval
 
       if (slots.value.length === 0) {
-        if (!isValidSlotTimeRange(customStartTime.value, customEndTime.value)) return
+        let nextSlots: Array<{ slotDate: string; startTime: string; endTime: string }> = []
         selectedDates.value.forEach((d) => {
-          const slotsToAdd = splitIntoSlots(customStartTime.value, customEndTime.value, interval)
-          slotsToAdd.forEach((slot) => {
-            slots.value.push({
-              slotDate: d,
-              startTime: slot.start,
-              endTime: slot.end,
-            })
-          })
+          const range = dateRanges.value[d] || {
+            start: customStartTime.value,
+            end: customEndTime.value,
+          }
+          if (isValidSlotTimeRange(range.start, range.end)) {
+            nextSlots = replaceSlotsForDate(nextSlots, d, range.start, range.end, interval)
+          }
         })
-        sortSlots()
+        slots.value = nextSlots
         return
       }
 
@@ -256,34 +275,49 @@ export const EventCreator = defineVaporComponent({
       sortSlots()
     }
 
-    // プリセット適用
+    // 選択中の全日程にプリセット時間帯を一括反映（上書き）
     const applyPresetToSelectedDates = (preset: { start: string; end: string }) => {
       if (selectedDates.value.length === 0) {
         errorMessage.value = 'まずはカレンダーから日付を選んでください'
         return
       }
       errorMessage.value = ''
+      customStartTime.value = preset.start
+      customEndTime.value = preset.end
 
-      const slotsToAdd = splitIntoSlots(preset.start, preset.end, slotIntervalMinutes.value)
-
+      const nextRanges = { ...dateRanges.value }
+      let nextSlots = [...slots.value]
       selectedDates.value.forEach((d) => {
-        slotsToAdd.forEach((slot) => {
-          const exists = slots.value.some(
-            (s) => s.slotDate === d && s.startTime === slot.start && s.endTime === slot.end
-          )
-          if (!exists) {
-            slots.value.push({
-              slotDate: d,
-              startTime: slot.start,
-              endTime: slot.end,
-            })
-          }
-        })
+        nextRanges[d] = { start: preset.start, end: preset.end }
+        nextSlots = replaceSlotsForDate(
+          nextSlots,
+          d,
+          preset.start,
+          preset.end,
+          slotIntervalMinutes.value
+        )
       })
-      sortSlots()
+      dateRanges.value = nextRanges
+      slots.value = nextSlots
     }
 
-    // カスタム時間枠の追加
+    // 選択中の全日程をカスタム時間帯で一括反映（上書き）
+    const applyCustomRangeToSelectedDates = () => {
+      if (selectedDates.value.length === 0) {
+        errorMessage.value = 'まずはカレンダーから日付を選んでください'
+        return
+      }
+      if (!isValidSlotTimeRange(customStartTime.value, customEndTime.value)) {
+        errorMessage.value = '終了時刻は開始時刻より後に設定してください'
+        return
+      }
+      applyPresetToSelectedDates({
+        start: customStartTime.value,
+        end: customEndTime.value,
+      })
+    }
+
+    // カスタム時間枠の追加（既存枠を残したまま別時間帯を追加）
     const addCustomSlot = () => {
       if (selectedDates.value.length === 0) {
         errorMessage.value = 'まずはカレンダーから日付を選んでください'
@@ -323,12 +357,16 @@ export const EventCreator = defineVaporComponent({
       slots.value.splice(index, 1)
       if (removed && !slots.value.some((s) => s.slotDate === removed.slotDate)) {
         selectedDates.value = selectedDates.value.filter((d) => d !== removed.slotDate)
+        const nextRanges = { ...dateRanges.value }
+        delete nextRanges[removed.slotDate]
+        dateRanges.value = nextRanges
       }
     }
 
     const clearAllSlots = () => {
       slots.value = []
       selectedDates.value = []
+      dateRanges.value = {}
     }
 
     // イベント送信
@@ -742,11 +780,11 @@ export const EventCreator = defineVaporComponent({
                   </div>
                 </div>
 
-                {/* 時間帯プリセットとカスタム追加 */}
+                {/* 時間帯プリセットと一括反映 */}
                 <div class="space-y-3 pt-2">
-                  <div class="flex items-center justify-between">
+                  <div class="flex items-center justify-between flex-wrap gap-1">
                     <label class="block text-xs font-bold text-stone-700">
-                      選択中の日付（{selectedDates.value.length}日）に時間帯を一括追加
+                      選択中の全日程（{selectedDates.value.length}日）に時間帯を一括反映
                     </label>
                     <span class="text-[11px] text-stone-500">
                       ※{slotIntervalMinutes.value}分刻みで自動分割されます
@@ -755,92 +793,221 @@ export const EventCreator = defineVaporComponent({
 
                   {/* プリセットボタン群 */}
                   <div class="flex flex-wrap gap-2">
-                    {timePresets.map((preset) => (
-                      <button
-                        key={preset.label}
-                        type="button"
-                        onClick={() => applyPresetToSelectedDates(preset)}
-                        class="px-3 py-1.5 bg-white border border-rose-200 hover:bg-rose-50 text-stone-700 text-xs rounded-xl font-medium transition shadow-xs"
-                      >
-                        ＋ {preset.label}
-                      </button>
-                    ))}
+                    {TIME_PRESETS.map((preset) => {
+                      const isActiveDefault =
+                        customStartTime.value === preset.start && customEndTime.value === preset.end
+                      return (
+                        <button
+                          key={preset.key}
+                          type="button"
+                          onClick={() => applyPresetToSelectedDates(preset)}
+                          class={`px-3 py-1.5 border text-xs rounded-xl font-bold transition shadow-xs cursor-pointer ${
+                            isActiveDefault
+                              ? 'bg-rose-500 border-rose-500 text-white'
+                              : 'bg-white border-rose-200 hover:bg-rose-50 text-stone-700'
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      )
+                    })}
                   </div>
 
-                  {/* カスタム時間帯追加 */}
+                  {/* カスタム時間帯一括設定・追加 */}
                   <div class="flex flex-wrap items-center gap-2 pt-1 bg-stone-50 p-3 rounded-2xl border border-stone-200">
                     <span class="text-xs font-bold text-stone-600">カスタム時間:</span>
                     <input
                       type="time"
                       value={customStartTime.value}
                       onChange={(e: any) => (customStartTime.value = e.target.value)}
-                      class="bg-white border border-stone-300 rounded-lg px-2 py-1 text-xs outline-none"
+                      class="bg-white border border-stone-300 rounded-lg px-2 py-1 text-xs outline-none font-mono"
                     />
                     <span class="text-xs text-stone-400">〜</span>
                     <input
                       type="time"
                       value={customEndTime.value}
                       onChange={(e: any) => (customEndTime.value = e.target.value)}
-                      class="bg-white border border-stone-300 rounded-lg px-2 py-1 text-xs outline-none"
+                      class="bg-white border border-stone-300 rounded-lg px-2 py-1 text-xs outline-none font-mono"
                     />
                     <button
                       type="button"
-                      onClick={addCustomSlot}
-                      class="px-3 py-1 bg-stone-800 hover:bg-stone-900 text-white text-xs font-bold rounded-lg transition"
+                      onClick={applyCustomRangeToSelectedDates}
+                      class="px-3 py-1.5 bg-stone-800 hover:bg-stone-900 text-white text-xs font-bold rounded-lg transition cursor-pointer"
                     >
-                      この時間帯を追加
+                      全日程に反映
+                    </button>
+                    <button
+                      type="button"
+                      onClick={addCustomSlot}
+                      class="px-3 py-1.5 bg-white hover:bg-stone-100 border border-stone-300 text-stone-700 text-xs font-bold rounded-lg transition cursor-pointer"
+                      title="既存の枠を残したまま、別の時間帯を追加します"
+                    >
+                      ＋ 枠を追加
                     </button>
                   </div>
                 </div>
 
-                {/* 選択された候補枠一覧 */}
-                <div class="space-y-2 pt-2">
+                {/* 日ごとの時間帯設定 */}
+                <div class="space-y-3 pt-2">
                   <div class="flex items-center justify-between">
-                    <label class="block text-xs font-bold text-stone-700">
-                      作成される候補枠（全 {slots.value.length} コマ）
-                    </label>
+                    <div>
+                      <label class="block text-xs font-bold text-stone-700">
+                        日ごとの時間帯設定（全 {selectedDates.value.length} 日・計 {slots.value.length} コマ）
+                      </label>
+                      <p class="text-[11px] text-stone-500 mt-0.5">
+                        初日は午後から、2日目は全日、最終日は午前のみなど、日ごとに開始・終了時刻を変えられます。
+                      </p>
+                    </div>
                     {slots.value.length > 0 ? (
                       <button
                         type="button"
                         onClick={clearAllSlots}
-                        class="text-xs text-stone-400 hover:text-rose-500 cursor-pointer"
+                        class="text-xs text-stone-400 hover:text-rose-500 cursor-pointer shrink-0"
                       >
                         すべてクリア
                       </button>
                     ) : null}
                   </div>
 
-                  {slots.value.length === 0 ? (
+                  {selectedDates.value.length === 0 ? (
                     <div class="p-6 border-2 border-dashed border-rose-200 rounded-2xl text-center text-xs text-stone-400">
-                      カレンダーから日付を選んで時間枠を追加してください
+                      カレンダーから候補日を選択してください
                     </div>
                   ) : (
-                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5 max-h-60 overflow-y-auto p-1 bg-stone-50/50 rounded-2xl border border-stone-200">
-                      {slots.value.map((slot, index) => (
-                        <div
-                          key={`${slot.slotDate}-${slot.startTime}-${slot.endTime}-${index}`}
-                          class="flex items-center justify-between bg-white border border-stone-200 px-2.5 py-1.5 rounded-lg text-xs shadow-2xs"
-                        >
-                          <div class="font-medium text-stone-800 truncate mr-1">
-                            <span class="font-bold text-[11px] text-stone-600 block">
-                              {formatDateLabel(slot.slotDate)}
-                            </span>
-                            <span class="font-mono text-xs text-rose-600 font-bold">
-                              {slot.startTime}〜{slot.endTime}
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => removeSlot(index)}
-                            class="text-stone-300 hover:text-rose-600 font-bold p-1"
-                            title="枠を削除"
+                    <div class="space-y-2">
+                      {selectedDates.value.map((dateStr, idx) => {
+                        const range = dateRanges.value[dateStr] || {
+                          start: customStartTime.value,
+                          end: customEndTime.value,
+                        }
+                        const daySlots = slots.value.filter((s) => s.slotDate === dateStr)
+
+                        return (
+                          <div
+                            key={dateStr}
+                            data-testid={`date-row-${dateStr}`}
+                            class="bg-rose-50/40 border border-rose-200/80 rounded-2xl p-3 flex flex-col gap-2.5 transition hover:border-rose-300"
                           >
-                            ✕
-                          </button>
-                        </div>
-                      ))}
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                              {/* 日付ラベル */}
+                              <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 bg-rose-100 text-rose-700 rounded-md text-[11px] font-extrabold">
+                                  {idx + 1}日目
+                                </span>
+                                <span class="font-bold text-sm text-stone-900 font-['M_PLUS_Rounded_1c']">
+                                  {formatDateLabel(dateStr)}
+                                </span>
+                                <span class="text-[11px] text-stone-500 font-bold bg-white px-2 py-0.5 rounded-full border border-stone-200">
+                                  {daySlots.length}コマ
+                                </span>
+                              </div>
+
+                              {/* 開始〜終了時刻の個別指定 & 日付削除 */}
+                              <div class="flex items-center gap-1.5 flex-wrap">
+                                <input
+                                  type="time"
+                                  aria-label={`${formatDateLabel(dateStr)}の開始時刻`}
+                                  value={range.start}
+                                  onChange={(e: any) =>
+                                    updateSingleDateRange(dateStr, e.target.value, range.end)
+                                  }
+                                  class="bg-white border border-stone-300 focus:border-rose-400 rounded-lg px-2.5 py-1 text-xs font-mono font-bold text-stone-800 outline-none"
+                                />
+                                <span class="text-xs text-stone-400 font-bold">〜</span>
+                                <input
+                                  type="time"
+                                  aria-label={`${formatDateLabel(dateStr)}の終了時刻`}
+                                  value={range.end}
+                                  onChange={(e: any) =>
+                                    updateSingleDateRange(dateStr, range.start, e.target.value)
+                                  }
+                                  class="bg-white border border-stone-300 focus:border-rose-400 rounded-lg px-2.5 py-1 text-xs font-mono font-bold text-stone-800 outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => toggleDate(dateStr)}
+                                  class="ml-1 text-xs text-stone-400 hover:text-rose-600 font-bold px-2 py-1 rounded-lg hover:bg-rose-100/60 transition cursor-pointer"
+                                  title="この候補日を削除"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* 日ごとのクイックプリセットボタン */}
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                              <span class="text-[11px] text-stone-400 font-bold mr-0.5">
+                                この日を:
+                              </span>
+                              {TIME_PRESETS.map((preset) => {
+                                const isCurrent =
+                                  range.start === preset.start && range.end === preset.end
+                                return (
+                                  <button
+                                    key={`${dateStr}-${preset.key}`}
+                                    type="button"
+                                    onClick={() =>
+                                      updateSingleDateRange(dateStr, preset.start, preset.end)
+                                    }
+                                    class={`px-2 py-0.5 text-[11px] rounded-md font-bold transition cursor-pointer border ${
+                                      isCurrent
+                                        ? 'bg-rose-500 text-white border-rose-500'
+                                        : 'bg-white text-stone-600 border-stone-200 hover:border-rose-300 hover:text-rose-700'
+                                    }`}
+                                    title={preset.label}
+                                  >
+                                    {preset.shortLabel}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )
+                      })}
                     </div>
                   )}
+
+                  {/* コマ単位の微調整アコーディオン */}
+                  {slots.value.length > 0 ? (
+                    <div class="pt-1">
+                      <button
+                        type="button"
+                        onClick={() => (isSlotDetailOpen.value = !isSlotDetailOpen.value)}
+                        class="text-xs text-stone-500 hover:text-stone-800 font-bold flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>{isSlotDetailOpen.value ? '▼' : '▶'}</span>
+                        <span>コマ単位で個別に確認・削除する（全 {slots.value.length} コマ）</span>
+                      </button>
+
+                      {isSlotDetailOpen.value ? (
+                        <div class="mt-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5 max-h-60 overflow-y-auto p-2 bg-stone-50/70 rounded-2xl border border-stone-200">
+                          {slots.value.map((slot, index) => (
+                            <div
+                              key={`${slot.slotDate}-${slot.startTime}-${slot.endTime}-${index}`}
+                              class="flex items-center justify-between bg-white border border-stone-200 px-2.5 py-1.5 rounded-lg text-xs shadow-2xs"
+                            >
+                              <div class="font-medium text-stone-800 truncate mr-1">
+                                <span class="font-bold text-[11px] text-stone-600 block">
+                                  {formatDateLabel(slot.slotDate)}
+                                </span>
+                                <span class="font-mono text-xs text-rose-600 font-bold">
+                                  {slot.startTime}〜{slot.endTime}
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removeSlot(index)}
+                                class="text-stone-300 hover:text-rose-600 font-bold p-1 cursor-pointer"
+                                title="枠を削除"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               </div>
 

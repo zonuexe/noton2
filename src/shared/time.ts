@@ -11,6 +11,24 @@ export const TIMELINE_HOURS = [
   '02', '03', '04', '05',
 ] as const
 
+export interface TimePreset {
+  key: string
+  shortLabel: string
+  label: string
+  start: string
+  end: string
+}
+
+// 時間帯プリセット定義（1日の流れ・広さ順）
+export const TIME_PRESETS: readonly TimePreset[] = [
+  { key: 'all-day', shortLabel: '全日', label: '全日 (08:00〜22:00)', start: '08:00', end: '22:00' },
+  { key: 'morning', shortLabel: '午前', label: '午前 (08:00〜12:00)', start: '08:00', end: '12:00' },
+  { key: 'daytime', shortLabel: '日中', label: '日中 (10:00〜19:00)', start: '10:00', end: '19:00' },
+  { key: 'afternoon', shortLabel: '午後', label: '午後 (13:00〜18:00)', start: '13:00', end: '18:00' },
+  { key: 'evening', shortLabel: '夜', label: '夜 (18:00〜22:00)', start: '18:00', end: '22:00' },
+  { key: 'party', shortLabel: '飲み会', label: '飲み会 (19:00〜23:00)', start: '19:00', end: '23:00' },
+] as const
+
 // 日付フォーマット: 'YYYY-MM-DD' -> 'YYYY/M/D(曜日)'
 export function formatDateLabel(dateStr: string): string {
   const parts = dateStr.split('-')
@@ -148,6 +166,26 @@ export function splitIntoSlots(
 
 // 後方互換 alias
 export const splitIntoHourlySlots = (s: string, e: string) => splitIntoSlots(s, e, 60)
+
+// 特定の日付のスロットを指定した開始〜終了時間帯で置き換える（他日程のスロットはそのまま維持）
+export function replaceSlotsForDate(
+  currentSlots: Array<{ slotDate: string; startTime: string; endTime: string }>,
+  dateStr: string,
+  startTime: string,
+  endTime: string,
+  intervalMinutes: number = 60
+): Array<{ slotDate: string; startTime: string; endTime: string }> {
+  if (!isValidSlotTimeRange(startTime, endTime)) {
+    return currentSlots
+  }
+  const otherDateSlots = currentSlots.filter((s) => s.slotDate !== dateStr)
+  const newDaySlots = splitIntoSlots(startTime, endTime, intervalMinutes).map((s) => ({
+    slotDate: dateStr,
+    startTime: s.start,
+    endTime: s.end,
+  }))
+  return [...otherDateSlots, ...newDaySlots].sort(compareSlots)
+}
 
 // 日付と時間帯（厳密な開始時刻）から、唯一のスロットを検索 (1:1 紐付け)
 export function findSlotByExactTime(

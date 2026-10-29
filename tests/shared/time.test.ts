@@ -4,7 +4,9 @@
 
 import { describe, it, expect } from 'vitest'
 import {
+  TIME_PRESETS,
   splitIntoSlots,
+  replaceSlotsForDate,
   getSlotsForHour,
   formatDateLabel,
   formatDateISO,
@@ -219,6 +221,46 @@ describe('shared/time - 日時・スロット計算ロジック', () => {
       expect(sanitizeHttpUrl('data:text/html,<script>alert(1)</script>')).toBeNull()
       expect(sanitizeHttpUrl('//evil.example.com')).toBeNull()
       expect(sanitizeHttpUrl(null)).toBeNull()
+    })
+
+    it('TIME_PRESETS: 「終日」を含まず、「全日 (08:00〜22:00)」を先頭に自然な順序で定義されていること', () => {
+      expect(TIME_PRESETS.some((p) => p.label.includes('終日'))).toBe(false)
+      expect(TIME_PRESETS.map((p) => p.shortLabel)).toEqual([
+        '全日',
+        '午前',
+        '日中',
+        '午後',
+        '夜',
+        '飲み会',
+      ])
+      expect(TIME_PRESETS[0]).toMatchObject({
+        shortLabel: '全日',
+        label: '全日 (08:00〜22:00)',
+        start: '08:00',
+        end: '22:00',
+      })
+    })
+
+    it('replaceSlotsForDate: 複数日イベントで日ごとに異なる時間帯（例: 初日15-20時, 2日目08-20時, 3日目08-13時）を個別に設定できること', () => {
+      let slots: Array<{ slotDate: string; startTime: string; endTime: string }> = []
+      // 初日: 15:00〜20:00 (5コマ)
+      slots = replaceSlotsForDate(slots, '2026-11-01', '15:00', '20:00', 60)
+      // 2日目: 08:00〜20:00 (12コマ)
+      slots = replaceSlotsForDate(slots, '2026-11-02', '08:00', '20:00', 60)
+      // 3日目: 08:00〜13:00 (5コマ)
+      slots = replaceSlotsForDate(slots, '2026-11-03', '08:00', '13:00', 60)
+
+      expect(slots.filter((s) => s.slotDate === '2026-11-01')).toHaveLength(5)
+      expect(slots.filter((s) => s.slotDate === '2026-11-02')).toHaveLength(12)
+      expect(slots.filter((s) => s.slotDate === '2026-11-03')).toHaveLength(5)
+      expect(slots).toHaveLength(22)
+
+      // 初日の時間帯だけを 16:00〜20:00 (4コマ) に変更しても、2日目・3日目は影響を受けないこと
+      slots = replaceSlotsForDate(slots, '2026-11-01', '16:00', '20:00', 60)
+      expect(slots.filter((s) => s.slotDate === '2026-11-01')).toHaveLength(4)
+      expect(slots.filter((s) => s.slotDate === '2026-11-02')).toHaveLength(12)
+      expect(slots.filter((s) => s.slotDate === '2026-11-03')).toHaveLength(5)
+      expect(slots).toHaveLength(21)
     })
   })
 })
