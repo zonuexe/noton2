@@ -3,8 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import { defineVaporComponent, computed, ref } from 'vue'
-import type { AnswerStatus, EventDetail, TimeSlot } from '@/shared/types'
-import { TIMELINE_HOURS, formatDateLabel, findSlotForHour } from '@/shared/time'
+import type { AnswerStatus, EventDetail } from '@/shared/types'
+import { TIMELINE_HOURS, formatDateLabel, getSlotsForHour } from '@/shared/time'
 
 export const MatrixTable = defineVaporComponent({
   props: {
@@ -35,7 +35,7 @@ export const MatrixTable = defineVaporComponent({
       }
     })
 
-    // イベントに含まれるユニークな日付一覧 ('YYYY-MM-DD')
+    // ユニーク日付一覧
     const uniqueDates = computed(() => {
       const dateSet = new Set<string>()
       props.event.slots.forEach((s) => dateSet.add(s.slotDate))
@@ -75,7 +75,6 @@ export const MatrixTable = defineVaporComponent({
       }
     }
 
-    // 回答フォームへスムーズスクロール
     const scrollToAnswerForm = () => {
       const el = document.getElementById('answer-form-section')
       if (el) {
@@ -236,10 +235,9 @@ export const MatrixTable = defineVaporComponent({
                         {props.event.participants.map((p) => (
                           <div key={p.id} class="flex h-7 sm:h-8 items-center mb-1">
                             {TIMELINE_HOURS.map((hour) => {
-                              const slot = findSlotForHour(dateSlots, dateStr, hour)
+                              const slotsInHour = getSlotsForHour(dateSlots, dateStr, hour)
 
-                              // 枠外（主催者未設定の時間帯）
-                              if (!slot) {
+                              if (slotsInHour.length === 0) {
                                 return (
                                   <div
                                     key={hour}
@@ -249,35 +247,46 @@ export const MatrixTable = defineVaporComponent({
                                 )
                               }
 
-                              const status: AnswerStatus | undefined = p.answers
-                                ? p.answers[slot.id]
-                                : undefined
-
-                              let cellBg = 'bg-stone-100 text-stone-400'
-                              let symbol = '-'
-                              let title = `${hour}:00 未回答`
-
-                              if (status === 'favorite' || status === 'available') {
-                                cellBg = 'bg-sky-400 text-white font-bold'
-                                symbol = '•'
-                                title = `${hour}:00 参加可能`
-                              } else if (status === 'maybe') {
-                                cellBg = 'bg-amber-400 text-white font-bold text-[9px]'
-                                symbol = '▲'
-                                title = `${hour}:00 未定`
-                              } else if (status === 'unavailable') {
-                                cellBg = 'bg-stone-300 text-stone-600 font-bold text-xs'
-                                symbol = '×'
-                                title = `${hour}:00 不可`
-                              }
+                              const cellWidthClass =
+                                slotsInHour.length > 1
+                                  ? 'w-[14px] sm:w-[16px]'
+                                  : 'w-[28px] sm:w-[32px]'
 
                               return (
-                                <div
-                                  key={hour}
-                                  class={`w-[28px] sm:w-[32px] h-full flex items-center justify-center text-xs select-none border-r border-white/40 cursor-default ${cellBg}`}
-                                  title={`${p.name} - ${title}`}
-                                >
-                                  <span>{symbol}</span>
+                                <div key={hour} class="flex h-full">
+                                  {slotsInHour.map((slot) => {
+                                    const status: AnswerStatus | undefined = p.answers
+                                      ? p.answers[slot.id]
+                                      : undefined
+
+                                    let cellBg = 'bg-stone-100 text-stone-400'
+                                    let symbol = '-'
+                                    let title = `${slot.startTime}〜${slot.endTime} 未回答`
+
+                                    if (status === 'favorite' || status === 'available') {
+                                      cellBg = 'bg-sky-400 text-white font-bold'
+                                      symbol = '•'
+                                      title = `${slot.startTime}〜${slot.endTime} 参加可能`
+                                    } else if (status === 'maybe') {
+                                      cellBg = 'bg-amber-400 text-white font-bold text-[9px]'
+                                      symbol = '▲'
+                                      title = `${slot.startTime}〜${slot.endTime} 未定`
+                                    } else if (status === 'unavailable') {
+                                      cellBg = 'bg-stone-300 text-stone-600 font-bold text-xs'
+                                      symbol = '×'
+                                      title = `${slot.startTime}〜${slot.endTime} 不可`
+                                    }
+
+                                    return (
+                                      <div
+                                        key={slot.id}
+                                        class={`${cellWidthClass} h-full flex items-center justify-center text-xs select-none border-r border-white/40 cursor-default ${cellBg}`}
+                                        title={`${p.name} - ${title}`}
+                                      >
+                                        <span>{symbol}</span>
+                                      </div>
+                                    )
+                                  })}
                                 </div>
                               )
                             })}
@@ -288,8 +297,8 @@ export const MatrixTable = defineVaporComponent({
                         {props.event.participants.length > 0 ? (
                           <div class="flex h-6 sm:h-7 items-center border-t border-stone-200/80 pt-1">
                             {TIMELINE_HOURS.map((hour) => {
-                              const slot = findSlotForHour(dateSlots, dateStr, hour)
-                              if (!slot) {
+                              const slotsInHour = getSlotsForHour(dateSlots, dateStr, hour)
+                              if (slotsInHour.length === 0) {
                                 return (
                                   <div
                                     key={hour}
@@ -298,32 +307,43 @@ export const MatrixTable = defineVaporComponent({
                                 )
                               }
 
-                              let okCount = 0
-                              let totalCount = props.event.participants.length
-                              props.event.participants.forEach((p) => {
-                                const st = p.answers ? p.answers[slot.id] : undefined
-                                if (st === 'favorite' || st === 'available') {
-                                  okCount++
-                                }
-                              })
-
-                              const isAllOk = totalCount > 0 && okCount === totalCount
-
-                              let summaryClass = 'text-[10px] text-stone-400'
-                              if (isAllOk) {
-                                summaryClass =
-                                  'bg-emerald-500 text-white font-extrabold rounded-md shadow-xs animate-pulse'
-                              } else if (okCount > 0) {
-                                summaryClass = 'text-sky-700 font-bold bg-sky-50 rounded'
-                              }
+                              const cellWidthClass =
+                                slotsInHour.length > 1
+                                  ? 'w-[14px] sm:w-[16px]'
+                                  : 'w-[28px] sm:w-[32px]'
 
                               return (
-                                <div
-                                  key={hour}
-                                  class={`w-[28px] sm:w-[32px] h-full flex items-center justify-center ${summaryClass}`}
-                                  title={`${hour}:00 参加可能 ${okCount}/${totalCount}名`}
-                                >
-                                  <span>{isAllOk ? '★' : okCount > 0 ? okCount : ''}</span>
+                                <div key={hour} class="flex h-full">
+                                  {slotsInHour.map((slot) => {
+                                    let okCount = 0
+                                    let totalCount = props.event.participants.length
+                                    props.event.participants.forEach((p) => {
+                                      const st = p.answers ? p.answers[slot.id] : undefined
+                                      if (st === 'favorite' || st === 'available') {
+                                        okCount++
+                                      }
+                                    })
+
+                                    const isAllOk = totalCount > 0 && okCount === totalCount
+
+                                    let summaryClass = 'text-[10px] text-stone-400'
+                                    if (isAllOk) {
+                                      summaryClass =
+                                        'bg-emerald-500 text-white font-extrabold rounded-md shadow-xs animate-pulse'
+                                    } else if (okCount > 0) {
+                                      summaryClass = 'text-sky-700 font-bold bg-sky-50 rounded'
+                                    }
+
+                                    return (
+                                      <div
+                                        key={slot.id}
+                                        class={`${cellWidthClass} h-full flex items-center justify-center ${summaryClass}`}
+                                        title={`${slot.startTime}〜${slot.endTime} 参加可能 ${okCount}/${totalCount}名`}
+                                      >
+                                        <span>{isAllOk ? '★' : okCount > 0 ? okCount : ''}</span>
+                                      </div>
+                                    )
+                                  })}
                                 </div>
                               )
                             })}

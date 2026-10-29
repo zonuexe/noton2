@@ -4,7 +4,7 @@
 
 import { defineVaporComponent, ref, computed, onMounted } from 'vue'
 import type { AnswerStatus, EventDetail, SubmitResponseInput } from '@/shared/types'
-import { TIMELINE_HOURS, formatDateLabel, findSlotForHour } from '@/shared/time'
+import { TIMELINE_HOURS, formatDateLabel, getSlotsForHour } from '@/shared/time'
 
 export const AnswerForm = defineVaporComponent({
   props: {
@@ -20,23 +20,31 @@ export const AnswerForm = defineVaporComponent({
   setup(props) {
     const name = ref('')
     const comment = ref('')
+    // slotId -> AnswerStatus のマッピング
     const answers = ref<Record<string, AnswerStatus>>({})
     const participantId = ref<string | null>(null)
     const editToken = ref<string | null>(null)
 
     // 現在選択中の塗りツール ('toggle' または 特定のステータス)
-    const activeTool = ref<'toggle' | AnswerStatus>('toggle')
+    const activeTool = ref<'toggle' | AnswerStatus>('available')
+
+    // ドラッグ塗り状態
+    const isDragging = ref(false)
+    const dragTargetStatus = ref<AnswerStatus>('available')
 
     const isSubmitting = ref(false)
     const errorMessage = ref('')
     const successMessage = ref('')
 
-    // イベントに含まれるユニークな日付一覧 ('YYYY-MM-DD')
+    // ユニーク日付一覧
     const uniqueDates = computed(() => {
       const dateSet = new Set<string>()
       props.event.slots.forEach((s) => dateSet.add(s.slotDate))
       return Array.from(dateSet).sort()
     })
+
+    // 刻み幅が30分かどうか
+    const is30Min = computed(() => props.event.slotIntervalMinutes === 30)
 
     // localStorage から過去の自分の回答を取得
     onMounted(() => {
@@ -65,46 +73,90 @@ export const AnswerForm = defineVaporComponent({
       }
 
       // 未回答スロットのデフォルトを 'available' (◯) に
+      const initial: Record<string, AnswerStatus> = { ...answers.value }
       props.event.slots.forEach((s) => {
-        if (!answers.value[s.id]) {
-          answers.value[s.id] = 'available'
+        if (!initial[s.id]) {
+          initial[s.id] = 'available'
         }
       })
+      answers.value = initial
+
+      // グローバル mouseup でドラッグ終了
+      const stopDrag = () => {
+        isDragging.value = false
+      }
+      window.addEventListener('mouseup', stopDrag)
+      window.addEventListener('touchend', stopDrag)
     })
 
     // 全スロットを一括設定
     const setAll = (status: AnswerStatus) => {
+      const next: Record<string, AnswerStatus> = {}
       props.event.slots.forEach((s) => {
-        answers.value[s.id] = status
+        next[s.id] = status
       })
+      answers.value = next
     }
 
-    // 特定の日付の全スロットを一括設定
+    // 特定日の全スロットを一括設定
     const setDateAll = (dateStr: string, status: AnswerStatus) => {
+      const next = { ...answers.value }
       props.event.slots
         .filter((s) => s.slotDate === dateStr)
         .forEach((s) => {
-          answers.value[s.id] = status
+          next[s.id] = status
         })
+      answers.value = next
     }
 
-    // セルクリック時のトグルまたは塗り
-    const handleCellClick = (slotId: string) => {
-      if (activeTool.value !== 'toggle') {
-        answers.value[slotId] = activeTool.value
-        return
-      }
+    // 単一セルのステータスを更新 (immutable代入で確実に再描画)
+    const applyStatusToSlot = (slotId: string, status?: AnswerStatus) => {
+      const targetStatus =
+        status ||
+        (activeTool.value !== 'toggle'
+          ? activeTool.value
+          : getNextToggleStatus(answers.value[slotId] || 'available'))
 
-      // トグル順: available(◯) -> maybe(△) -> unavailable(✕) -> favorite(◎) -> available(◯)
-      const current = answers.value[slotId] || 'available'
-      if (current === 'available') {
-        answers.value[slotId] = 'maybe'
-      } else if (current === 'maybe') {
-        answers.value[slotId] = 'unavailable'
-      } else if (current === 'unavailable') {
-        answers.value[slotId] = 'favorite'
+      answers.value = {
+        ...answers.value,
+        [slotId]: targetStatus,
+      }
+    }
+
+    const getNextToggleStatus = (current: AnswerStatus): AnswerStatus => {
+      if (current === 'available') return 'maybe'
+      if (current === 'maybe') return 'unavailable'
+      if (current === 'unavailable') return 'favorite'
+      return 'available'
+    }
+
+    // マウスダウン（ドラッグ開始）
+    const handleMouseDown = (slotId: string) => {
+      isDragging.value = true
+      if (activeTool.value === 'toggle') {
+        const next = getNextToggleStatus(answers.value[slotId] || 'available')
+        dragTargetStatus.value = next
+        applyStatusToSlot(slotId, next)
       } else {
-        answers.value[slotId] = 'available'
+        dragTargetStatus.value = activeTool.value
+        applyStatusToSlot(slotId, activeTool.value)
+      }
+    }
+
+    // マウスオーバー（ドラッグ中に塗る）
+    const handleMouseEnter = (slotId: string) => {
+      if (!isDragging.value) return
+      applyStatusToSlot(slotId, dragTargetStatus.value)
+    }
+
+    // タッチ操作（スマホ用ドラッグ）
+    const handleTouchMove = (e: any) => {
+      if (!isDragging.value || !e.touches || e.touches.length === 0) return
+      const touch = e.touches[0]
+      const target = document.elementFromPoint(touch.clientX, touch.clientY) as HTMLElement | null
+      const slotId = target?.dataset?.slotId
+      if (slotId) {
+        applyStatusToSlot(slotId, dragTargetStatus.value)
       }
     }
 
@@ -169,10 +221,11 @@ export const AnswerForm = defineVaporComponent({
       editToken.value = null
       name.value = ''
       comment.value = ''
-      answers.value = {}
+      const next: Record<string, AnswerStatus> = {}
       props.event.slots.forEach((s) => {
-        answers.value[s.id] = 'available'
+        next[s.id] = 'available'
       })
+      answers.value = next
     }
 
     return (
@@ -190,7 +243,7 @@ export const AnswerForm = defineVaporComponent({
               <span>{participantId.value ? '回答を編集する' : 'あなたの予定を追加する'}</span>
             </h2>
             <p class="text-xs text-stone-500 mt-0.5">
-              お名前を入力し、タイムラインの各時間をタップして出欠（◯・△・✕）を選択してください。
+              お名前を入力し、タイムラインの各時間をタップ（またはなぞって）出欠を選択してください。
             </p>
           </div>
           {participantId.value ? (
@@ -242,83 +295,86 @@ export const AnswerForm = defineVaporComponent({
           </div>
         </div>
 
-        {/* タイムライン入力操作バー */}
+        {/* タイムライン操作ツールバー */}
         <div class="bg-stone-50 p-3 sm:p-4 rounded-2xl border border-stone-200 space-y-3">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div class="flex items-center gap-1.5 flex-wrap">
-              <span class="text-xs font-bold text-stone-700 mr-1">入力モード:</span>
-              <button
-                type="button"
-                onClick={() => (activeTool.value = 'toggle')}
-                class={`px-2.5 py-1 text-xs font-bold rounded-lg transition border ${
-                  activeTool.value === 'toggle'
-                    ? 'bg-stone-800 text-white border-stone-800 shadow-xs'
-                    : 'bg-white text-stone-700 border-stone-300 hover:bg-stone-100'
-                }`}
-              >
-                🔄 タップで切替
-              </button>
+              <span class="text-xs font-bold text-stone-700 mr-1">塗りツール:</span>
               <button
                 type="button"
                 onClick={() => (activeTool.value = 'available')}
-                class={`px-2.5 py-1 text-xs font-bold rounded-lg transition border ${
+                class={`px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1 border ${
                   activeTool.value === 'available'
-                    ? 'bg-sky-500 text-white border-sky-500 shadow-xs'
+                    ? 'bg-sky-500 text-white border-sky-500 shadow-sm ring-2 ring-sky-200'
                     : 'bg-white text-sky-700 border-sky-300 hover:bg-sky-50'
                 }`}
               >
-                • ◯を塗る
+                <span>•</span>
+                <span>◯（可）を塗る</span>
               </button>
               <button
                 type="button"
                 onClick={() => (activeTool.value = 'maybe')}
-                class={`px-2.5 py-1 text-xs font-bold rounded-lg transition border ${
+                class={`px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1 border ${
                   activeTool.value === 'maybe'
-                    ? 'bg-amber-500 text-white border-amber-500 shadow-xs'
+                    ? 'bg-amber-500 text-white border-amber-500 shadow-sm ring-2 ring-amber-200'
                     : 'bg-white text-amber-700 border-amber-300 hover:bg-amber-50'
                 }`}
               >
-                ▲ △を塗る
+                <span>▲</span>
+                <span>△（未定）を塗る</span>
               </button>
               <button
                 type="button"
                 onClick={() => (activeTool.value = 'unavailable')}
-                class={`px-2.5 py-1 text-xs font-bold rounded-lg transition border ${
+                class={`px-3 py-1.5 text-xs font-bold rounded-xl transition flex items-center gap-1 border ${
                   activeTool.value === 'unavailable'
-                    ? 'bg-stone-500 text-white border-stone-500 shadow-xs'
+                    ? 'bg-stone-500 text-white border-stone-500 shadow-sm ring-2 ring-stone-200'
                     : 'bg-white text-stone-600 border-stone-300 hover:bg-stone-100'
                 }`}
               >
-                × ✕を塗る
+                <span>×</span>
+                <span>✕（不可）を塗る</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => (activeTool.value = 'toggle')}
+                class={`px-2.5 py-1.5 text-xs font-bold rounded-xl transition border ${
+                  activeTool.value === 'toggle'
+                    ? 'bg-stone-800 text-white border-stone-800 shadow-sm ring-2 ring-stone-300'
+                    : 'bg-white text-stone-700 border-stone-300 hover:bg-stone-100'
+                }`}
+              >
+                🔄 順次切替
               </button>
             </div>
 
-            {/* 一括操作 */}
-            <div class="flex items-center gap-1.5">
-              <span class="text-[11px] text-stone-500 font-bold">全枠一括:</span>
+            {/* 一括操作ボタン */}
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-stone-500 font-bold">全枠一括:</span>
               <button
                 type="button"
                 onClick={() => setAll('available')}
-                class="px-2 py-0.5 bg-sky-100 hover:bg-sky-200 text-sky-800 text-xs rounded-md font-bold transition"
+                class="px-2.5 py-1 bg-sky-100 hover:bg-sky-200 text-sky-800 text-xs rounded-lg font-bold transition"
               >
                 すべて◯
               </button>
               <button
                 type="button"
                 onClick={() => setAll('unavailable')}
-                class="px-2 py-0.5 bg-stone-200 hover:bg-stone-300 text-stone-700 text-xs rounded-md font-bold transition"
+                class="px-2.5 py-1 bg-stone-200 hover:bg-stone-300 text-stone-700 text-xs rounded-lg font-bold transition"
               >
                 すべて✕
               </button>
             </div>
           </div>
           <p class="text-[11px] text-stone-500">
-            タイムライン上のマスをクリックすると出欠が変わります。まずは「すべて◯」にしてから、都合の悪い時間だけ✕にするのがおすすめです。
+            💡 マウスを押したまま横になぞる（ドラッグ）と連続してサクサク塗ることができます。
           </p>
         </div>
 
         {/* 日付ごとのタイムライン入力リスト */}
-        <div class="space-y-3">
+        <div class="space-y-4 select-none" onTouchmove={handleTouchMove}>
           {uniqueDates.value.map((dateStr) => {
             const dateSlots = props.event.slots.filter((s) => s.slotDate === dateStr)
 
@@ -353,7 +409,7 @@ export const AnswerForm = defineVaporComponent({
                 {/* タイムライングリッド */}
                 <div class="overflow-x-auto overflow-y-hidden pb-1 -mx-2 px-2 md:mx-0 md:px-0">
                   <div class="min-w-[700px]">
-                    {/* 時間軸ヘッダー */}
+                    {/* 時間軸ヘッダー (06〜05) */}
                     <div class="flex border-b border-stone-200 mb-1">
                       {TIMELINE_HOURS.map((hour) => (
                         <div
@@ -365,13 +421,13 @@ export const AnswerForm = defineVaporComponent({
                       ))}
                     </div>
 
-                    {/* セル列（クリック可能） */}
+                    {/* セル行 (30分刻みなら1時間あたり2コマ、1時間刻みなら1コマ) */}
                     <div class="flex h-8 sm:h-9 items-center">
                       {TIMELINE_HOURS.map((hour) => {
-                        const slot = findSlotForHour(dateSlots, dateStr, hour)
+                        const slotsInHour = getSlotsForHour(dateSlots, dateStr, hour)
 
-                        // 枠外
-                        if (!slot) {
+                        // その時間のスロットがない（枠外）
+                        if (slotsInHour.length === 0) {
                           return (
                             <div
                               key={hour}
@@ -381,37 +437,51 @@ export const AnswerForm = defineVaporComponent({
                           )
                         }
 
-                        const status = answers.value[slot.id] || 'available'
-
-                        let cellClass = 'bg-sky-400 text-white font-bold hover:bg-sky-500'
-                        let symbol = '•'
-                        let title = `${hour}:00 ◯（参加可能）`
-
-                        if (status === 'favorite') {
-                          cellClass = 'bg-blue-600 text-white font-bold hover:bg-blue-700'
-                          symbol = '◎'
-                          title = `${hour}:00 ◎（希望）`
-                        } else if (status === 'maybe') {
-                          cellClass = 'bg-amber-400 text-white font-bold hover:bg-amber-500'
-                          symbol = '▲'
-                          title = `${hour}:00 △（未定）`
-                        } else if (status === 'unavailable') {
-                          cellClass =
-                            'bg-stone-300 text-stone-600 font-bold hover:bg-stone-400 hover:text-white'
-                          symbol = '×'
-                          title = `${hour}:00 ✕（不可）`
-                        }
+                        // スロットが存在する場合 (1〜2コマ)
+                        const cellWidthClass =
+                          slotsInHour.length > 1
+                            ? 'w-[14px] sm:w-[16px]'
+                            : 'w-[28px] sm:w-[32px]'
 
                         return (
-                          <button
-                            key={hour}
-                            type="button"
-                            onClick={() => handleCellClick(slot.id)}
-                            class={`w-[28px] sm:w-[32px] h-full flex items-center justify-center text-xs select-none border-r border-white/40 transition cursor-pointer active:scale-95 ${cellClass}`}
-                            title={title}
-                          >
-                            <span>{symbol}</span>
-                          </button>
+                          <div key={hour} class="flex h-full">
+                            {slotsInHour.map((slot) => {
+                              const status = answers.value[slot.id] || 'available'
+
+                              let cellClass = 'bg-sky-400 text-white font-bold hover:bg-sky-500'
+                              let symbol = '•'
+                              let title = `${slot.startTime}〜${slot.endTime} ◯（参加可能）`
+
+                              if (status === 'favorite') {
+                                cellClass = 'bg-blue-600 text-white font-bold hover:bg-blue-700'
+                                symbol = '◎'
+                                title = `${slot.startTime}〜${slot.endTime} ◎（希望）`
+                              } else if (status === 'maybe') {
+                                cellClass = 'bg-amber-400 text-white font-bold hover:bg-amber-500'
+                                symbol = '▲'
+                                title = `${slot.startTime}〜${slot.endTime} △（未定）`
+                              } else if (status === 'unavailable') {
+                                cellClass =
+                                  'bg-stone-300 text-stone-600 font-bold hover:bg-stone-400 hover:text-white'
+                                symbol = '×'
+                                title = `${slot.startTime}〜${slot.endTime} ✕（不可）`
+                              }
+
+                              return (
+                                <div
+                                  key={slot.id}
+                                  data-slot-id={slot.id}
+                                  onMousedown={() => handleMouseDown(slot.id)}
+                                  onMouseenter={() => handleMouseEnter(slot.id)}
+                                  onTouchstart={() => handleMouseDown(slot.id)}
+                                  class={`${cellWidthClass} h-full flex items-center justify-center text-xs select-none border-r border-white/40 transition cursor-pointer active:scale-95 ${cellClass}`}
+                                  title={title}
+                                >
+                                  <span>{symbol}</span>
+                                </div>
+                              )
+                            })}
+                          </div>
                         )
                       })}
                     </div>

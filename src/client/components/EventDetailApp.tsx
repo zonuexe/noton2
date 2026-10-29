@@ -141,7 +141,8 @@ export const EventDetailApp = defineVaporComponent({
                     <span class="text-stone-400">（{event.value.organizerName}）</span>
                   ) : null}
                 </div>
-                <span>候補枠数: {event.value.slots.length}枠</span>
+                <span>予定時間: <strong class="text-stone-700">{event.value.durationMinutes >= 60 ? `${event.value.durationMinutes / 60}時間` : `${event.value.durationMinutes}分`}</strong></span>
+                <span>候補枠数: {event.value.slots.length}コマ</span>
               </div>
             </div>
 

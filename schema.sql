@@ -2,7 +2,7 @@
 -- License, v. 2.0. If a copy of the MPL was not distributed with this
 -- file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
--- users table (GitHub OAuth 連携ユーザー)
+-- users table (GitHub OAuth 連携)
 CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     github_id INTEGER UNIQUE NOT NULL,
@@ -22,9 +22,11 @@ CREATE TABLE IF NOT EXISTS events (
     admin_token TEXT NOT NULL,
     title TEXT NOT NULL,
     description TEXT,
+    duration_minutes INTEGER DEFAULT 60,       -- 予定時間 / 所要時間 (分)
+    slot_interval_minutes INTEGER DEFAULT 60,  -- スロット刻み幅 (30 or 60 分)
     organizer_name TEXT NOT NULL,
     creator_user_id TEXT,
-    confirmed_slot_id TEXT,
+    confirmed_slot_id TEXT,                    -- 確定スロットID
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now')),
     FOREIGN KEY(creator_user_id) REFERENCES users(id) ON DELETE SET NULL
@@ -32,7 +34,7 @@ CREATE TABLE IF NOT EXISTS events (
 
 CREATE INDEX IF NOT EXISTS idx_events_creator ON events(creator_user_id);
 
--- time_slots table
+-- time_slots table (各日・各時間コマが完全に1行として独立)
 CREATE TABLE IF NOT EXISTS time_slots (
     id TEXT PRIMARY KEY,
     event_id TEXT NOT NULL,
@@ -43,7 +45,7 @@ CREATE TABLE IF NOT EXISTS time_slots (
     FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_time_slots_event ON time_slots(event_id);
+CREATE INDEX IF NOT EXISTS idx_time_slots_event ON time_slots(event_id, slot_date, start_time);
 
 -- participants table
 CREATE TABLE IF NOT EXISTS participants (
@@ -59,7 +61,7 @@ CREATE TABLE IF NOT EXISTS participants (
 
 CREATE INDEX IF NOT EXISTS idx_participants_event ON participants(event_id);
 
--- slot_answers table
+-- slot_answers table (コマごとの回答)
 CREATE TABLE IF NOT EXISTS slot_answers (
     id TEXT PRIMARY KEY,
     participant_id TEXT NOT NULL,

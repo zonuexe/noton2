@@ -4,7 +4,7 @@
 
 import { defineVaporComponent, ref, computed } from 'vue'
 import type { CreateEventInput, User } from '@/shared/types'
-import { splitIntoHourlySlots, formatDateLabel } from '@/shared/time'
+import { splitIntoSlots, formatDateLabel } from '@/shared/time'
 
 export const EventCreator = defineVaporComponent({
   props: {
@@ -19,8 +19,11 @@ export const EventCreator = defineVaporComponent({
     const organizerName = ref(user.value?.displayName || user.value?.username || '')
     const description = ref('')
 
-    // 1時間ごとに分割して登録するフラグ (tonton方式)
-    const isHourlySplit = ref(true)
+    // 予定時間 / 所要時間 (分)
+    const durationMinutes = ref(60)
+
+    // スロット刻み幅 (分: 30 or 60)
+    const slotIntervalMinutes = ref(60)
 
     // カレンダー選択用ステータス
     const today = new Date()
@@ -44,12 +47,14 @@ export const EventCreator = defineVaporComponent({
     const customStartTime = ref('10:00')
     const customEndTime = ref('19:00')
 
-    // 初期候補枠 (10:00〜19:00 の 1時間区切りスロット)
-    const initialHourly = splitIntoHourlySlots('10:00', '19:00').map((slot) => ({
-      slotDate: todayStr,
-      startTime: slot.start,
-      endTime: slot.end,
-    }))
+    // 初期候補枠 (10:00〜19:00 の 1時間刻み独立スロット)
+    const initialHourly = splitIntoSlots('10:00', '19:00', slotIntervalMinutes.value).map(
+      (slot) => ({
+        slotDate: todayStr,
+        startTime: slot.start,
+        endTime: slot.end,
+      })
+    )
 
     const slots = ref<Array<{ slotDate: string; startTime: string; endTime: string }>>(
       initialHourly
@@ -161,15 +166,15 @@ export const EventCreator = defineVaporComponent({
       const idx = selectedDates.value.indexOf(dateStr)
       if (idx >= 0) {
         selectedDates.value = selectedDates.value.filter((d) => d !== dateStr)
-        // slotsからも削除
         slots.value = slots.value.filter((s) => s.slotDate !== dateStr)
       } else {
         selectedDates.value = [...selectedDates.value, dateStr].sort()
-        // デフォルト時間帯を追加
-        const slotsToAdd = isHourlySplit.value
-          ? splitIntoHourlySlots(customStartTime.value, customEndTime.value)
-          : [{ start: customStartTime.value, end: customEndTime.value }]
-
+        // 設定中の時間帯をコマとして追加
+        const slotsToAdd = splitIntoSlots(
+          customStartTime.value,
+          customEndTime.value,
+          slotIntervalMinutes.value
+        )
         slotsToAdd.forEach((slot) => {
           slots.value.push({
             slotDate: dateStr,
@@ -181,7 +186,29 @@ export const EventCreator = defineVaporComponent({
       }
     }
 
-    // 選択中の日付すべてに時間帯を適用
+    // 刻み幅の変更
+    const handleIntervalChange = (interval: number) => {
+      slotIntervalMinutes.value = interval
+      // 現在選択中の日付で再生成
+      slots.value = []
+      selectedDates.value.forEach((d) => {
+        const slotsToAdd = splitIntoSlots(
+          customStartTime.value,
+          customEndTime.value,
+          interval
+        )
+        slotsToAdd.forEach((slot) => {
+          slots.value.push({
+            slotDate: d,
+            startTime: slot.start,
+            endTime: slot.end,
+          })
+        })
+      })
+      sortSlots()
+    }
+
+    // プリセット適用
     const applyPresetToSelectedDates = (preset: { start: string; end: string }) => {
       if (selectedDates.value.length === 0) {
         errorMessage.value = 'まずはカレンダーから日付を選んでください'
@@ -189,9 +216,7 @@ export const EventCreator = defineVaporComponent({
       }
       errorMessage.value = ''
 
-      const slotsToAdd = isHourlySplit.value
-        ? splitIntoHourlySlots(preset.start, preset.end)
-        : [{ start: preset.start, end: preset.end }]
+      const slotsToAdd = splitIntoSlots(preset.start, preset.end, slotIntervalMinutes.value)
 
       selectedDates.value.forEach((d) => {
         slotsToAdd.forEach((slot) => {
@@ -222,9 +247,11 @@ export const EventCreator = defineVaporComponent({
       }
       errorMessage.value = ''
 
-      const slotsToAdd = isHourlySplit.value
-        ? splitIntoHourlySlots(customStartTime.value, customEndTime.value)
-        : [{ start: customStartTime.value, end: customEndTime.value }]
+      const slotsToAdd = splitIntoSlots(
+        customStartTime.value,
+        customEndTime.value,
+        slotIntervalMinutes.value
+      )
 
       selectedDates.value.forEach((d) => {
         slotsToAdd.forEach((slot) => {
@@ -272,6 +299,8 @@ export const EventCreator = defineVaporComponent({
         const payload: CreateEventInput = {
           title: title.value.trim(),
           description: description.value.trim() || undefined,
+          durationMinutes: durationMinutes.value,
+          slotIntervalMinutes: slotIntervalMinutes.value,
           organizerName: organizerName.value.trim(),
           slots: slots.value,
         }
@@ -320,7 +349,7 @@ export const EventCreator = defineVaporComponent({
       <div>
         {createdResult.value ? (
           /* 作成完了画面 */
-          <div class="max-w-2xl mx-auto bg-white rounded-3xl p-6 md:p-10 border border-rose-200 shadow-xl shadow-rose-100/50 space-y-8 animate-fade-in">
+          <div class="max-w-2xl mx-auto bg-white rounded-3xl p-6 md:p-10 border border-stone-200 shadow-xl shadow-stone-100/50 space-y-8 animate-fade-in">
             <div class="text-center space-y-3">
               <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-rose-100 text-3xl">
                 🎉
@@ -422,7 +451,7 @@ export const EventCreator = defineVaporComponent({
                 日程調整表を作る
               </h1>
               <p class="text-stone-600 text-sm">
-                カレンダーから候補日を選んで、1時間区切りのタイムラインを作成します。
+                日付と時間帯を選ぶだけで、誰でも直感的に回答できるタイムラインを作成します。
               </p>
             </div>
 
@@ -461,11 +490,11 @@ export const EventCreator = defineVaporComponent({
               </div>
             ) : null}
 
-            <div class="bg-white rounded-3xl p-6 md:p-8 border border-rose-100 shadow-xl shadow-rose-100/40 space-y-8">
+            <div class="bg-white rounded-3xl p-6 md:p-8 border border-stone-200 shadow-xl shadow-stone-100/40 space-y-8">
               {/* 基本情報 */}
               <div class="space-y-4">
                 <div class="flex items-center justify-between">
-                  <h2 class="text-base font-bold text-stone-800 border-l-4 border-rose-400 pl-3">
+                  <h2 class="text-base font-bold text-stone-800 border-l-4 border-rose-500 pl-3">
                     1. 基本情報
                   </h2>
                   {user.value ? (
@@ -485,7 +514,7 @@ export const EventCreator = defineVaporComponent({
                 <div class="space-y-3">
                   <div>
                     <label class="block text-xs font-bold text-stone-700 mb-1">
-                      イベント名 <span class="text-rose-500">*</span>
+                      イベント名 / 会議名 <span class="text-rose-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -496,26 +525,45 @@ export const EventCreator = defineVaporComponent({
                     />
                   </div>
 
-                  <div>
-                    <label class="block text-xs font-bold text-stone-700 mb-1">
-                      主催者名（表示名） <span class="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="例: 山田太郎、幹事、ニックネーム"
-                      value={organizerName.value}
-                      onInput={(e: any) => (organizerName.value = e.target.value)}
-                      class="w-full border border-stone-200 focus:border-rose-400 focus:ring-2 focus:ring-rose-200 rounded-xl px-4 py-2.5 text-sm transition outline-none"
-                    />
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-xs font-bold text-stone-700 mb-1">
+                        主催者名（表示名） <span class="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="例: 山田太郎、幹事、ニックネーム"
+                        value={organizerName.value}
+                        onInput={(e: any) => (organizerName.value = e.target.value)}
+                        class="w-full border border-stone-200 focus:border-rose-400 focus:ring-2 focus:ring-rose-200 rounded-xl px-4 py-2.5 text-sm transition outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label class="block text-xs font-bold text-stone-700 mb-1">
+                        予定時間 / 所要時間
+                      </label>
+                      <select
+                        value={durationMinutes.value}
+                        onChange={(e: any) => (durationMinutes.value = Number(e.target.value))}
+                        class="w-full border border-stone-200 focus:border-rose-400 focus:ring-2 focus:ring-rose-200 rounded-xl px-3 py-2.5 text-sm transition outline-none bg-white font-medium"
+                      >
+                        <option value={30}>30分</option>
+                        <option value={60}>1時間（推奨）</option>
+                        <option value={90}>1時間30分</option>
+                        <option value={120}>2時間</option>
+                        <option value={180}>3時間</option>
+                      </select>
+                    </div>
                   </div>
 
                   <div>
                     <label class="block text-xs font-bold text-stone-700 mb-1">
-                      説明・備考（任意）
+                      補足・備考（任意）
                     </label>
                     <textarea
                       rows={2}
-                      placeholder="例: オンライン（Google Meet / Zoom）で開催予定です。都合のよい時間帯を回答してください。"
+                      placeholder="例: オンライン（Google Meet / Zoom）で開催予定です。議題: ○○○"
                       value={description.value}
                       onInput={(e: any) => (description.value = e.target.value)}
                       class="w-full border border-stone-200 focus:border-rose-400 focus:ring-2 focus:ring-rose-200 rounded-xl px-4 py-2.5 text-sm transition outline-none"
@@ -526,23 +574,37 @@ export const EventCreator = defineVaporComponent({
 
               {/* カレンダー & 候補日時選択 */}
               <div class="space-y-4">
-                <div class="flex items-center justify-between">
-                  <h2 class="text-base font-bold text-stone-800 border-l-4 border-rose-400 pl-3">
+                <div class="flex items-center justify-between flex-wrap gap-2">
+                  <h2 class="text-base font-bold text-stone-800 border-l-4 border-rose-500 pl-3">
                     2. 候補日時を選ぶ
                   </h2>
 
-                  {/* 1時間区切りトグル */}
-                  <label class="flex items-center gap-2 cursor-pointer bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-200 hover:bg-rose-100/70 transition">
-                    <input
-                      type="checkbox"
-                      checked={isHourlySplit.value}
-                      onChange={(e: any) => (isHourlySplit.value = e.target.checked)}
-                      class="rounded text-rose-500 focus:ring-rose-400 h-4 w-4"
-                    />
-                    <span class="text-xs font-bold text-rose-800">
-                      1時間区切りで作成する
-                    </span>
-                  </label>
+                  {/* 刻み幅の選択 */}
+                  <div class="flex items-center gap-1.5 bg-stone-100 p-1 rounded-xl">
+                    <span class="text-[11px] font-bold text-stone-500 px-2">刻み幅:</span>
+                    <button
+                      type="button"
+                      onClick={() => handleIntervalChange(30)}
+                      class={`px-2.5 py-1 text-xs font-bold rounded-lg transition ${
+                        slotIntervalMinutes.value === 30
+                          ? 'bg-white text-rose-600 shadow-xs'
+                          : 'text-stone-600 hover:text-stone-900'
+                      }`}
+                    >
+                      30分刻み
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleIntervalChange(60)}
+                      class={`px-2.5 py-1 text-xs font-bold rounded-lg transition ${
+                        slotIntervalMinutes.value === 60
+                          ? 'bg-white text-rose-600 shadow-xs'
+                          : 'text-stone-600 hover:text-stone-900'
+                      }`}
+                    >
+                      1時間刻み
+                    </button>
+                  </div>
                 </div>
 
                 {/* カレンダーヘッダー */}
@@ -630,7 +692,7 @@ export const EventCreator = defineVaporComponent({
                       選択中の日付（{selectedDates.value.length}日）に時間帯を一括追加
                     </label>
                     <span class="text-[11px] text-stone-500">
-                      {isHourlySplit.value ? '※1時間単位で自動分割されます' : '※1つの枠として追加'}
+                      ※{slotIntervalMinutes.value}分刻みで自動分割されます
                     </span>
                   </div>
 
@@ -678,7 +740,7 @@ export const EventCreator = defineVaporComponent({
                 <div class="space-y-2 pt-2">
                   <div class="flex items-center justify-between">
                     <label class="block text-xs font-bold text-stone-700">
-                      作成される候補枠（全 {slots.value.length} 枠）
+                      作成される候補枠（全 {slots.value.length} コマ）
                     </label>
                     {slots.value.length > 0 ? (
                       <button
@@ -739,7 +801,7 @@ export const EventCreator = defineVaporComponent({
                     ) : (
                       <>
                         <span>✨</span>
-                        <span>日程調整表を作成する（全 {slots.value.length} 枠）</span>
+                        <span>日程調整表を作成する（全 {slots.value.length} コマ）</span>
                       </>
                     )}
                   </button>

@@ -108,26 +108,31 @@ export async function createEvent(
 ): Promise<{ id: string; adminToken: string }> {
   const eventId = generateShortId(8)
   const adminToken = generateToken()
+  const durationMinutes = input.durationMinutes || 60
+  const slotIntervalMinutes = input.slotIntervalMinutes || 60
 
   // 1. events テーブルに挿入
   await db
     .prepare(
-      `INSERT INTO events (id, admin_token, title, description, organizer_name, creator_user_id)
-       VALUES (?, ?, ?, ?, ?, ?)`
+      `INSERT INTO events (id, admin_token, title, description, duration_minutes, slot_interval_minutes, organizer_name, creator_user_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       eventId,
       adminToken,
       input.title.trim(),
       input.description?.trim() || null,
+      durationMinutes,
+      slotIntervalMinutes,
       input.organizerName.trim(),
       creatorUserId || null
     )
     .run()
 
-  // 2. time_slots テーブルに挿入
+  // 2. time_slots テーブルに挿入 (各コマを独立した行として保存)
   if (input.slots && input.slots.length > 0) {
     const slotStatements = input.slots.map((slot, idx) => {
+      // 識別しやすい一意なスロットID (例: 'slot_8char')
       const slotId = generateShortId(10)
       return db
         .prepare(
@@ -155,6 +160,8 @@ export async function getEventById(
          e.admin_token,
          e.title,
          e.description,
+         e.duration_minutes,
+         e.slot_interval_minutes,
          e.organizer_name,
          e.creator_user_id,
          e.confirmed_slot_id,
@@ -175,6 +182,8 @@ export async function getEventById(
       admin_token: string
       title: string
       description: string | null
+      duration_minutes: number | null
+      slot_interval_minutes: number | null
       organizer_name: string
       creator_user_id: string | null
       confirmed_slot_id: string | null
@@ -198,7 +207,7 @@ export async function getEventById(
   )
   const isOrganizer = isTokenAdmin || isUserAdmin
 
-  // スロット取得 (日付、開始時刻、ソート順で並び替え)
+  // スロット取得 (日付、開始時刻順で厳密に並び替え)
   const slotRows = await db
     .prepare(
       `SELECT id, event_id, slot_date, start_time, end_time, sort_order
@@ -275,7 +284,6 @@ export async function getEventById(
     createdAt: p.created_at,
     updatedAt: p.updated_at,
     answers: answersByParticipant[p.id] || {},
-    // 主催者であれば参加者の edit_token も参照可能
     editToken: isOrganizer ? p.edit_token : undefined,
   }))
 
@@ -294,6 +302,8 @@ export async function getEventById(
     adminToken: isOrganizer ? eventRow.admin_token : undefined,
     title: eventRow.title,
     description: eventRow.description,
+    durationMinutes: eventRow.duration_minutes || 60,
+    slotIntervalMinutes: eventRow.slot_interval_minutes || 60,
     organizerName: eventRow.organizer_name,
     creatorUserId: eventRow.creator_user_id,
     creator,
@@ -350,7 +360,7 @@ export async function submitResponse(
       .run()
   }
 
-  // スロット回答の登録
+  // 各独立スロットへの回答を登録
   if (input.answers && input.answers.length > 0) {
     const answerStatements = input.answers.map((ans) => {
       const answerId = generateShortId(12)

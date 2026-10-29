@@ -23,10 +23,16 @@ export function formatDateLabel(dateStr: string): string {
   return `${year}/${month}/${day}(${dayNames[d.getDay()]})`
 }
 
-// 任意の時間範囲 (例: '10:00'〜'19:00') を 1時間区切りの枠に分割
-export function splitIntoHourlySlots(
+// 時間フォーマット: 'HH:mm'
+export function formatTimeHM(hour: number, minute: number): string {
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+}
+
+// 任意の開始〜終了時間帯を intervalMinutes (30 or 60分) 刻みの独立スロットに分割
+export function splitIntoSlots(
   startTime: string,
-  endTime: string
+  endTime: string,
+  intervalMinutes: number = 60
 ): Array<{ start: string; end: string }> {
   const result: Array<{ start: string; end: string }> = []
   const [startHour, startMin] = startTime.split(':').map(Number)
@@ -35,19 +41,22 @@ export function splitIntoHourlySlots(
   let curH = startHour
   let curM = startMin
 
+  const step = intervalMinutes > 0 ? intervalMinutes : 60
+
   while (curH < endHour || (curH === endHour && curM < endMin)) {
-    const nextH = curH + 1
-    const nextM = curM
+    let nextTotalMin = curH * 60 + curM + step
+    let nextH = Math.floor(nextTotalMin / 60)
+    let nextM = nextTotalMin % 60
 
     if (nextH > endHour || (nextH === endHour && nextM > endMin)) {
-      const s = `${String(curH).padStart(2, '0')}:${String(curM).padStart(2, '0')}`
-      const e = `${String(endHour).padStart(2, '0')}:${String(endMin).padStart(2, '0')}`
+      const s = formatTimeHM(curH, curM)
+      const e = formatTimeHM(endHour, endMin)
       if (s < e) result.push({ start: s, end: e })
       break
     }
 
-    const s = `${String(curH).padStart(2, '0')}:${String(curM).padStart(2, '0')}`
-    const e = `${String(nextH).padStart(2, '0')}:${String(nextM).padStart(2, '0')}`
+    const s = formatTimeHM(curH, curM)
+    const e = formatTimeHM(nextH, nextM)
     result.push({ start: s, end: e })
 
     curH = nextH
@@ -57,29 +66,32 @@ export function splitIntoHourlySlots(
   return result
 }
 
-// ある日付と特定時間（例: '10'）に対応するスロットを検索
-export function findSlotForHour(
+// 後方互換 alias
+export const splitIntoHourlySlots = (s: string, e: string) => splitIntoSlots(s, e, 60)
+
+// 日付と時間帯（厳密な開始時刻）から、唯一のスロットを検索 (1:1 紐付け)
+export function findSlotByExactTime(
+  slots: TimeSlot[],
+  dateStr: string,
+  startTimeStr: string
+): TimeSlot | undefined {
+  return slots.find((s) => s.slotDate === dateStr && s.startTime === startTimeStr)
+}
+
+// 1時間表示用: その時間のスロット一覧を取得 (30分刻みなら2コマ、1時間刻みなら1コマ)
+export function getSlotsForHour(
   slots: TimeSlot[],
   dateStr: string,
   hourStr: string
-): TimeSlot | undefined {
-  // '24' は '00:00' / '24:00' に対応
+): TimeSlot[] {
   const hourNum = hourStr === '24' ? 0 : Number(hourStr)
-  const hourTimeStr = `${String(hourNum).padStart(2, '0')}:00`
+  const prefix = `${String(hourNum).padStart(2, '0')}:`
+  return slots
+    .filter((s) => s.slotDate === dateStr && s.startTime.startsWith(prefix))
+    .sort((a, b) => a.startTime.localeCompare(b.startTime))
+}
 
-  return slots.find((s) => {
-    if (s.slotDate !== dateStr) return false
-    // 完全一致 (1時間区切り: startTime === '10:00')
-    if (s.startTime === hourTimeStr || s.startTime === `${hourStr}:00`) return true
-
-    // 範囲包含 (例: 10:00〜18:00 のスロットが10時セルを含む場合)
-    const [slotStartH] = s.startTime.split(':').map(Number)
-    const [slotEndH, slotEndM] = s.endTime.split(':').map(Number)
-    const slotEndRealH = slotEndM > 0 ? slotEndH + 1 : slotEndH
-    if (hourNum >= slotStartH && hourNum < slotEndRealH) {
-      return true
-    }
-
-    return false
-  })
+// 任意のスロットIDが確定スロットと一致しているか
+export function isSlotConfirmed(slotId: string, confirmedSlotId?: string | null): boolean {
+  return Boolean(confirmedSlotId && slotId === confirmedSlotId)
 }

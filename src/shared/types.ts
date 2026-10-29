@@ -55,6 +55,8 @@ export interface EventDetail {
   adminToken?: string
   title: string
   description?: string | null
+  durationMinutes: number // 予定所要時間 (分: 30, 60, 90, 120 など)
+  slotIntervalMinutes: number // スロット刻み幅 (分: 30 or 60)
   organizerName: string
   creatorUserId?: string | null
   creator?: CreatorProfile | null
@@ -69,6 +71,8 @@ export interface EventDetail {
 export interface CreateEventInput {
   title: string
   description?: string
+  durationMinutes?: number
+  slotIntervalMinutes?: number
   organizerName: string
   creatorUserId?: string
   slots: {
@@ -91,7 +95,7 @@ export interface SubmitResponseInput {
 
 export interface ConfirmSlotInput {
   adminToken?: string
-  slotId: string | null // null で解除
+  slotId: string | null
 }
 
 export interface SlotScore {
