@@ -75,6 +75,38 @@ export const MatrixTable = defineVaporComponent({
       }
     }
 
+    // 特定日の全スロット削除 (主催者専用)
+    const handleDeleteDateSlots = async (slotDate: string) => {
+      if (
+        !confirm(
+          `${formatDateLabel(slotDate)} のすべての枠を削除してもよろしいですか？この操作は取り消せません。`
+        )
+      ) {
+        return
+      }
+
+      isDeleting.value = true
+      try {
+        const query = props.adminToken ? `&admin=${encodeURIComponent(props.adminToken)}` : ''
+        const res = await fetch(
+          `/api/events/${props.event.id}/slots-by-date?date=${encodeURIComponent(slotDate)}${query}`,
+          { method: 'DELETE' }
+        )
+
+        if (!res.ok) {
+          const data = await res.json()
+          alert(data.error || '削除に失敗しました')
+          return
+        }
+
+        props.onReload()
+      } catch (e: any) {
+        alert(e.message || '通信エラーが発生しました')
+      } finally {
+        isDeleting.value = false
+      }
+    }
+
     const scrollToAnswerForm = () => {
       const el = document.getElementById('answer-form-section')
       if (el) {
@@ -87,12 +119,17 @@ export const MatrixTable = defineVaporComponent({
         {/* ヘッダーエリア */}
         <div class="space-y-1.5 border-b border-stone-200 pb-4">
           <div class="flex items-center justify-between flex-wrap gap-2">
-            <h2 class="text-lg md:text-xl font-bold text-stone-800 font-['M_PLUS_Rounded_1c'] flex items-center gap-2">
-              <span class="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-stone-100 text-base">
-                👥
-              </span>
-              <span>みんなの予定</span>
-            </h2>
+            <div>
+              <h2 class="text-lg md:text-xl font-bold text-stone-800 font-['M_PLUS_Rounded_1c'] flex items-center gap-2">
+                <span class="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-stone-100 text-base">
+                  👥
+                </span>
+                <span>みんなの予定・シフト表</span>
+              </h2>
+              <p class="text-xs text-stone-500 mt-0.5">
+                各時間帯に入れるスタッフの人数と、各メンバーのシフト希望一覧です。
+              </p>
+            </div>
 
             <div class="flex items-center gap-4">
               <button
@@ -105,31 +142,19 @@ export const MatrixTable = defineVaporComponent({
             </div>
           </div>
 
-          <p class="text-xs text-stone-500 leading-relaxed">
-            主催者が設定した日付と時間です。参加者の方は{' '}
-            <button
-              type="button"
-              onClick={scrollToAnswerForm}
-              class="text-sky-600 hover:underline font-bold inline"
-            >
-              あなたの予定を追加する
-            </button>{' '}
-            から予定を追加してください。
-          </p>
-
           {/* 凡例バッジ */}
           <div class="flex items-center gap-3 pt-2 text-xs flex-wrap">
             <span class="flex items-center gap-1.5 font-bold text-stone-700">
               <span class="w-4 h-4 rounded bg-sky-400 text-white text-[10px] flex items-center justify-center font-bold">
                 •
               </span>
-              ◯（参加可能）
+              ◯（参加可能・シフト可）
             </span>
             <span class="flex items-center gap-1.5 font-bold text-stone-700">
               <span class="w-4 h-4 rounded bg-amber-400 text-white text-[9px] flex items-center justify-center font-bold">
                 ▲
               </span>
-              △（未定）
+              △（未定・調整可）
             </span>
             <span class="flex items-center gap-1.5 font-bold text-stone-700">
               <span class="w-4 h-4 rounded bg-stone-300 text-stone-600 text-[10px] flex items-center justify-center font-bold">
@@ -139,19 +164,26 @@ export const MatrixTable = defineVaporComponent({
             </span>
             <span class="flex items-center gap-1.5 font-bold text-stone-500">
               <span class="w-4 h-4 rounded bg-stone-200/80 border border-stone-300"></span>
-              枠外（未設定）
+              枠外（シフトなし）
             </span>
-            <span class="flex items-center gap-1.5 font-bold text-emerald-700 ml-auto">
-              <span class="w-4 h-4 rounded bg-emerald-500 text-white text-[10px] flex items-center justify-center font-bold">
-                ★
+            <span class="flex items-center gap-1.5 font-bold text-rose-600 ml-auto">
+              <span class="w-4 h-4 rounded bg-rose-100 border border-rose-300 text-rose-700 text-[10px] flex items-center justify-center font-bold">
+                0
               </span>
-              全員参加可能
+              人手不足（0名）
             </span>
           </div>
         </div>
 
         {props.event.slots.length === 0 ? (
-          <div class="py-12 text-center text-stone-400 text-sm">候補日時がありません</div>
+          <div class="py-12 text-center text-stone-400 text-sm space-y-2">
+            <p>シフト候補日時がまだ登録されていません。</p>
+            {props.adminToken ? (
+              <p class="text-xs text-amber-700 font-bold">
+                上部の「📅 日時・枠を追加する」からシフト枠を追加してください。
+              </p>
+            ) : null}
+          </div>
         ) : (
           /* 日付ごとのタイムラインブロック一覧 */
           <div class="space-y-4">
@@ -166,8 +198,21 @@ export const MatrixTable = defineVaporComponent({
                   <div class="flex flex-col md:flex-row md:items-start gap-2 md:gap-4">
                     {/* 左側: 日付 ＆ メンバー名カラム */}
                     <div class="w-full md:w-44 shrink-0">
-                      <div class="font-bold text-sm text-stone-900 font-['M_PLUS_Rounded_1c'] border-b border-stone-200 md:border-b-0 pb-1 md:pb-0 mb-1.5">
-                        {formatDateLabel(dateStr)}
+                      <div class="flex items-center justify-between border-b border-stone-200 md:border-b-0 pb-1 md:pb-0 mb-1.5">
+                        <span class="font-bold text-sm text-stone-900 font-['M_PLUS_Rounded_1c']">
+                          {formatDateLabel(dateStr)}
+                        </span>
+                        {/* 主催者なら日付単位の削除が可能 */}
+                        {props.adminToken ? (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDateSlots(dateStr)}
+                            class="text-[11px] text-stone-400 hover:text-rose-600 font-bold cursor-pointer"
+                            title="この日のシフト枠をすべて削除"
+                          >
+                            削除
+                          </button>
+                        ) : null}
                       </div>
 
                       {props.event.participants.length === 0 ? (
@@ -209,8 +254,8 @@ export const MatrixTable = defineVaporComponent({
                           })}
 
                           {/* 集計行ラベル */}
-                          <div class="h-6 sm:h-7 flex items-center text-[11px] font-bold text-stone-500 border-t border-stone-200/80 pt-1">
-                            空き状況（全員◯）
+                          <div class="h-6 sm:h-7 flex items-center text-[11px] font-bold text-stone-700 border-t border-stone-200/80 pt-1">
+                            スタッフ人数
                           </div>
                         </div>
                       )}
@@ -266,11 +311,11 @@ export const MatrixTable = defineVaporComponent({
                                     if (status === 'favorite' || status === 'available') {
                                       cellBg = 'bg-sky-400 text-white font-bold'
                                       symbol = '•'
-                                      title = `${slot.startTime}〜${slot.endTime} 参加可能`
+                                      title = `${slot.startTime}〜${slot.endTime} シフト可能`
                                     } else if (status === 'maybe') {
                                       cellBg = 'bg-amber-400 text-white font-bold text-[9px]'
                                       symbol = '▲'
-                                      title = `${slot.startTime}〜${slot.endTime} 未定`
+                                      title = `${slot.startTime}〜${slot.endTime} 調整可・未定`
                                     } else if (status === 'unavailable') {
                                       cellBg = 'bg-stone-300 text-stone-600 font-bold text-xs'
                                       symbol = '×'
@@ -293,7 +338,7 @@ export const MatrixTable = defineVaporComponent({
                           </div>
                         ))}
 
-                        {/* 空き状況・集計行 */}
+                        {/* シフト人数・過不足集計行 */}
                         {props.event.participants.length > 0 ? (
                           <div class="flex h-6 sm:h-7 items-center border-t border-stone-200/80 pt-1">
                             {TIMELINE_HOURS.map((hour) => {
@@ -316,31 +361,39 @@ export const MatrixTable = defineVaporComponent({
                                 <div key={hour} class="flex h-full">
                                   {slotsInHour.map((slot) => {
                                     let okCount = 0
-                                    let totalCount = props.event.participants.length
+                                    let maybeCount = 0
                                     props.event.participants.forEach((p) => {
                                       const st = p.answers ? p.answers[slot.id] : undefined
                                       if (st === 'favorite' || st === 'available') {
                                         okCount++
+                                      } else if (st === 'maybe') {
+                                        maybeCount++
                                       }
                                     })
 
-                                    const isAllOk = totalCount > 0 && okCount === totalCount
+                                    let summaryClass = 'text-[11px] font-bold'
+                                    let displayText = String(okCount)
 
-                                    let summaryClass = 'text-[10px] text-stone-400'
-                                    if (isAllOk) {
-                                      summaryClass =
-                                        'bg-emerald-500 text-white font-extrabold rounded-md shadow-xs animate-pulse'
-                                    } else if (okCount > 0) {
-                                      summaryClass = 'text-sky-700 font-bold bg-sky-50 rounded'
+                                    if (okCount === 0) {
+                                      summaryClass +=
+                                        ' bg-rose-100 text-rose-700 font-extrabold rounded'
+                                      displayText = '0'
+                                    } else if (okCount === 1) {
+                                      summaryClass += ' bg-amber-100 text-amber-900 rounded'
+                                    } else {
+                                      summaryClass +=
+                                        ' bg-sky-100 text-sky-800 font-extrabold rounded'
                                     }
+
+                                    const tooltip = `${slot.startTime}〜${slot.endTime} シフト可能: ${okCount}名 (未定: ${maybeCount}名)`
 
                                     return (
                                       <div
                                         key={slot.id}
                                         class={`${cellWidthClass} h-full flex items-center justify-center ${summaryClass}`}
-                                        title={`${slot.startTime}〜${slot.endTime} 参加可能 ${okCount}/${totalCount}名`}
+                                        title={tooltip}
                                       >
-                                        <span>{isAllOk ? '★' : okCount > 0 ? okCount : ''}</span>
+                                        <span>{displayText}</span>
                                       </div>
                                     )
                                   })}
@@ -362,7 +415,7 @@ export const MatrixTable = defineVaporComponent({
         {props.event.participants.some((p) => p.comment) ? (
           <div class="bg-stone-50 rounded-2xl p-4 border border-stone-200 space-y-2 mt-4">
             <h3 class="text-xs font-bold text-stone-700 flex items-center gap-1.5">
-              <span>💬</span> 参加者からのコメント
+              <span>💬</span> スタッフからのコメント・連絡事項
             </h3>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
               {props.event.participants

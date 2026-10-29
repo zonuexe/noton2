@@ -4,12 +4,16 @@
 
 import { Hono } from 'hono'
 import {
+  addSlotsToEvent,
   confirmSlot,
   createEvent,
   deleteEvent,
   deleteParticipant,
+  deleteSlotFromEvent,
+  deleteSlotsByDate,
   getEventById,
   submitResponse,
+  updateEventDetails,
 } from '../db/client'
 import type { CreateEventInput, SubmitResponseInput } from '@/shared/types'
 import type { AuthBindings, AuthVariables } from '../middleware/auth'
@@ -69,6 +73,96 @@ api.get('/events/:id', async (c) => {
   } catch (err: any) {
     console.error('Get event error:', err)
     return c.json({ error: 'イベントの取得に失敗しました' }, 500)
+  }
+})
+
+// スロットの追加 (主催者のみ)
+api.post('/events/:id/slots', async (c) => {
+  try {
+    const eventId = c.req.param('id')
+    const body = await c.req.json<{
+      adminToken?: string
+      slots: Array<{ slotDate: string; startTime: string; endTime: string }>
+    }>()
+    const currentUser = c.get('user')
+
+    const result = await addSlotsToEvent(
+      c.env.DB,
+      eventId,
+      body.slots,
+      body.adminToken,
+      currentUser?.id
+    )
+
+    return c.json({ success: true, addedCount: result.addedCount })
+  } catch (err: any) {
+    console.error('Add slots error:', err)
+    return c.json({ error: err.message || 'スロットの追加に失敗しました' }, 403)
+  }
+})
+
+// スロットの削除 (主催者のみ)
+api.delete('/events/:id/slots/:slotId', async (c) => {
+  try {
+    const eventId = c.req.param('id')
+    const slotId = c.req.param('slotId')
+    const adminToken = c.req.query('admin') || (await c.req.json().catch(() => ({}))).adminToken
+    const currentUser = c.get('user')
+
+    const ok = await deleteSlotFromEvent(c.env.DB, eventId, slotId, adminToken, currentUser?.id)
+    if (!ok) {
+      return c.json({ error: 'スロットの削除に失敗しました' }, 400)
+    }
+
+    return c.json({ success: true })
+  } catch (err: any) {
+    console.error('Delete slot error:', err)
+    return c.json({ error: err.message || 'スロットの削除に失敗しました' }, 403)
+  }
+})
+
+// 特定日付の全スロット削除 (主催者のみ)
+api.delete('/events/:id/slots-by-date', async (c) => {
+  try {
+    const eventId = c.req.param('id')
+    const slotDate = c.req.query('date')
+    const adminToken = c.req.query('admin')
+    const currentUser = c.get('user')
+
+    if (!slotDate) {
+      return c.json({ error: '日付が指定されていません' }, 400)
+    }
+
+    const res = await deleteSlotsByDate(c.env.DB, eventId, slotDate, adminToken, currentUser?.id)
+    return c.json({ success: true, deletedCount: res.deletedCount })
+  } catch (err: any) {
+    console.error('Delete slots by date error:', err)
+    return c.json({ error: err.message || '日付スロットの削除に失敗しました' }, 403)
+  }
+})
+
+// イベント基本情報の更新 (主催者のみ)
+api.patch('/events/:id', async (c) => {
+  try {
+    const eventId = c.req.param('id')
+    const body = await c.req.json<{
+      adminToken?: string
+      title?: string
+      description?: string
+      durationMinutes?: number
+      organizerName?: string
+    }>()
+    const currentUser = c.get('user')
+
+    const ok = await updateEventDetails(c.env.DB, eventId, body, body.adminToken, currentUser?.id)
+    if (!ok) {
+      return c.json({ error: 'イベント情報の更新に失敗しました' }, 400)
+    }
+
+    return c.json({ success: true })
+  } catch (err: any) {
+    console.error('Update event error:', err)
+    return c.json({ error: err.message || 'イベント情報の更新に失敗しました' }, 403)
   }
 })
 

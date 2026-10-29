@@ -4,6 +4,7 @@
 
 import { defineVaporComponent, ref } from 'vue'
 import type { EventDetail } from '@/shared/types'
+import { splitIntoSlots, formatDateLabel } from '@/shared/time'
 
 export const AdminControls = defineVaporComponent({
   props: {
@@ -21,40 +22,105 @@ export const AdminControls = defineVaporComponent({
     },
   },
   setup(props) {
-    const selectedSlotId = ref<string>(
-      props.event.confirmedSlotId || props.event.slots[0]?.id || ''
-    )
     const isUpdating = ref(false)
     const isCopiedMessage = ref(false)
     const isCopiedShareUrl = ref(false)
 
-    const formatDateLabel = (dateStr: string) => {
-      const parts = dateStr.split('-')
-      if (parts.length < 3) return dateStr
-      const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]))
-      const dayNames = ['日', '月', '火', '水', '木', '金', '土']
-      return `${Number(parts[1])}/${Number(parts[2])} (${dayNames[d.getDay()]})`
-    }
+    // セクション開閉
+    const isAddSlotOpen = ref(false)
+    const isEditInfoOpen = ref(false)
 
-    // 日程確定または解除
-    const handleConfirm = async (slotId: string | null) => {
+    // 新規スロット追加用フォーム
+    const todayStr = new Date().toISOString().split('T')[0]
+    const newSlotDate = ref(todayStr)
+    const newStartTime = ref('10:00')
+    const newEndTime = ref('19:00')
+
+    // イベント基本情報編集用フォーム
+    const editTitle = ref(props.event.title)
+    const editDescription = ref(props.event.description || '')
+    const editDuration = ref(props.event.durationMinutes)
+
+    const timePresets = [
+      { label: '日中 (10:00〜19:00)', start: '10:00', end: '19:00' },
+      { label: '終日 (09:00〜18:00)', start: '09:00', end: '18:00' },
+      { label: '午後 (13:00〜18:00)', start: '13:00', end: '18:00' },
+      { label: '夜 (18:00〜22:00)', start: '18:00', end: '22:00' },
+    ]
+
+    // スロットの追加
+    const handleAddSlots = async () => {
+      if (!newSlotDate.value) {
+        alert('日付を選択してください')
+        return
+      }
+      if (newStartTime.value >= newEndTime.value) {
+        alert('終了時刻は開始時刻より後に設定してください')
+        return
+      }
+
       isUpdating.value = true
       try {
-        const res = await fetch(`/api/events/${props.event.id}/confirm`, {
+        const slotsToAdd = splitIntoSlots(
+          newStartTime.value,
+          newEndTime.value,
+          props.event.slotIntervalMinutes || 60
+        ).map((s) => ({
+          slotDate: newSlotDate.value,
+          startTime: s.start,
+          endTime: s.end,
+        }))
+
+        const res = await fetch(`/api/events/${props.event.id}/slots`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             adminToken: props.adminToken || undefined,
-            slotId,
+            slots: slotsToAdd,
           }),
         })
 
+        const data = await res.json()
         if (!res.ok) {
-          const data = await res.json()
-          alert(data.error || '日程確定の更新に失敗しました')
-          return
+          throw new Error(data.error || 'スロットの追加に失敗しました')
         }
 
+        alert(`${data.addedCount}件のシフト枠を追加しました！`)
+        props.onReload()
+      } catch (e: any) {
+        alert(e.message || '通信エラーが発生しました')
+      } finally {
+        isUpdating.value = false
+      }
+    }
+
+    // イベント基本情報の更新
+    const handleUpdateInfo = async () => {
+      if (!editTitle.value.trim()) {
+        alert('タイトルを入力してください')
+        return
+      }
+
+      isUpdating.value = true
+      try {
+        const res = await fetch(`/api/events/${props.event.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            adminToken: props.adminToken || undefined,
+            title: editTitle.value.trim(),
+            description: editDescription.value.trim() || undefined,
+            durationMinutes: editDuration.value,
+          }),
+        })
+
+        const data = await res.json()
+        if (!res.ok) {
+          throw new Error(data.error || '更新に失敗しました')
+        }
+
+        alert('イベント情報を更新しました！')
+        isEditInfoOpen.value = false
         props.onReload()
       } catch (e: any) {
         alert(e.message || '通信エラーが発生しました')
@@ -67,7 +133,7 @@ export const AdminControls = defineVaporComponent({
     const handleDeleteEvent = async () => {
       if (
         !confirm(
-          'このイベントと全ての回答データを削除してもよろしいですか？この操作は取り消せません。'
+          'このイベントと全ての回答・シフトデータを削除してもよろしいですか？この操作は取り消せません。'
         )
       ) {
         return
@@ -95,25 +161,18 @@ export const AdminControls = defineVaporComponent({
       }
     }
 
-    // 決定通知メッセージ生成
+    // 連絡用メッセージ生成
     const generateAnnouncementMessage = () => {
-      const confirmedSlot = props.event.slots.find((s) => s.id === props.event.confirmedSlotId)
-      const slotText = confirmedSlot
-        ? `${formatDateLabel(confirmedSlot.slotDate)} ${confirmedSlot.startTime}〜${confirmedSlot.endTime}`
-        : '未確定'
-
       const origin = typeof window !== 'undefined' ? window.location.origin : ''
       const shareUrl = `${origin}/events/${props.event.id}`
 
-      return `【日程決定】${props.event.title}
+      return `【シフト・日程調整のお願い】${props.event.title}
 
-皆さま、日程のご回答ありがとうございました！
-以下の日時にて開催が決定いたしました。
+スタッフの皆さま、シフトの入力をお願いいたします！
+以下のURLから入れる日時をご登録ください。
 
-📅 日時: ${slotText}
-👤 調整主催: ${props.event.organizerName}
-
-▼ 詳細・回答一覧はこちら
+👤 主催者: ${props.event.organizerName}
+▼ 入力・シフト表はこちら
 ${shareUrl}
 
 よろしくお願いいたします！`
@@ -142,7 +201,7 @@ ${shareUrl}
     }
 
     return (
-      <div class="bg-gradient-to-r from-amber-50 to-orange-50 rounded-3xl p-6 md:p-8 border-2 border-amber-300 shadow-xl shadow-amber-100/50 space-y-6">
+      <div class="bg-gradient-to-r from-amber-50 to-orange-50 rounded-3xl p-4 sm:p-6 md:p-8 border-2 border-amber-300 shadow-xl shadow-amber-100/50 space-y-6">
         <div class="flex items-center justify-between border-b border-amber-200 pb-3">
           <div class="flex items-center gap-2">
             <span class="text-xl">👑</span>
@@ -155,58 +214,39 @@ ${shareUrl}
           </span>
         </div>
 
-        {/* 日程確定セクション */}
-        <div class="space-y-3">
-          <label class="block text-xs font-bold text-amber-900">開催日時の確定</label>
-          <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-            <select
-              value={selectedSlotId.value}
-              onChange={(e: any) => (selectedSlotId.value = e.target.value)}
-              class="bg-white border border-amber-300 rounded-xl px-3 py-2 text-sm text-stone-800 outline-none flex-1 font-medium"
-            >
-              {props.event.slots.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {formatDateLabel(s.slotDate)} {s.startTime}〜{s.endTime}
-                </option>
-              ))}
-            </select>
+        {/* アクションボタン群 */}
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 pt-1">
+          <button
+            type="button"
+            onClick={() => (isAddSlotOpen.value = !isAddSlotOpen.value)}
+            class="px-4 py-3 bg-white border border-amber-300 hover:border-amber-500 rounded-2xl text-left transition shadow-xs flex items-center justify-between font-bold text-xs text-amber-950 cursor-pointer"
+          >
+            <span class="flex items-center gap-1.5">
+              <span>📅</span> 日時・枠を追加する
+            </span>
+            <span>{isAddSlotOpen.value ? '▲' : '▼'}</span>
+          </button>
 
-            <button
-              type="button"
-              disabled={isUpdating.value}
-              onClick={() => handleConfirm(selectedSlotId.value)}
-              class="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-sm font-extrabold rounded-xl transition shadow-sm whitespace-nowrap"
-            >
-              この日程で決定する
-            </button>
+          <button
+            type="button"
+            onClick={() => (isEditInfoOpen.value = !isEditInfoOpen.value)}
+            class="px-4 py-3 bg-white border border-amber-300 hover:border-amber-500 rounded-2xl text-left transition shadow-xs flex items-center justify-between font-bold text-xs text-amber-950 cursor-pointer"
+          >
+            <span class="flex items-center gap-1.5">
+              <span>✏️</span> イベント情報を編集
+            </span>
+            <span>{isEditInfoOpen.value ? '▲' : '▼'}</span>
+          </button>
 
-            {props.event.confirmedSlotId ? (
-              <button
-                type="button"
-                disabled={isUpdating.value}
-                onClick={() => handleConfirm(null)}
-                class="px-4 py-2.5 bg-white border border-amber-300 hover:bg-amber-100 text-amber-900 text-sm font-bold rounded-xl transition whitespace-nowrap"
-              >
-                確定を解除
-              </button>
-            ) : null}
-          </div>
-        </div>
-
-        {/* 決定メッセージコピー & 共有 */}
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
           <button
             type="button"
             onClick={copyAnnouncement}
-            class="p-3 bg-white border border-amber-200 hover:border-amber-400 rounded-2xl text-left transition shadow-xs flex items-center justify-between group"
+            class="px-4 py-3 bg-white border border-amber-300 hover:border-amber-500 rounded-2xl text-left transition shadow-xs flex items-center justify-between font-bold text-xs text-amber-950 cursor-pointer"
           >
-            <div>
-              <div class="text-xs font-bold text-amber-950 flex items-center gap-1.5">
-                <span>📋</span> 日程決定メッセージをコピー
-              </div>
-              <div class="text-[11px] text-stone-500 mt-0.5">LINE・Slack連絡用の定型文</div>
-            </div>
-            <span class="text-xs font-bold text-amber-600 group-hover:underline">
+            <span class="flex items-center gap-1.5">
+              <span>📋</span> 連絡用メッセージ
+            </span>
+            <span class="text-[11px] text-amber-600">
               {isCopiedMessage.value ? 'コピー完了！' : 'コピー'}
             </span>
           </button>
@@ -214,22 +254,151 @@ ${shareUrl}
           <button
             type="button"
             onClick={copyShareUrl}
-            class="p-3 bg-white border border-amber-200 hover:border-amber-400 rounded-2xl text-left transition shadow-xs flex items-center justify-between group"
+            class="px-4 py-3 bg-white border border-amber-300 hover:border-amber-500 rounded-2xl text-left transition shadow-xs flex items-center justify-between font-bold text-xs text-amber-950 cursor-pointer"
           >
-            <div>
-              <div class="text-xs font-bold text-amber-950 flex items-center gap-1.5">
-                <span>🔗</span> 参加者共有URLをコピー
-              </div>
-              <div class="text-[11px] text-stone-500 mt-0.5">回答依頼用リンク</div>
-            </div>
-            <span class="text-xs font-bold text-amber-600 group-hover:underline">
+            <span class="flex items-center gap-1.5">
+              <span>🔗</span> 共有URL
+            </span>
+            <span class="text-[11px] text-amber-600">
               {isCopiedShareUrl.value ? 'コピー完了！' : 'コピー'}
             </span>
           </button>
         </div>
 
+        {/* 1. 日時・シフト枠追加パネル */}
+        {isAddSlotOpen.value ? (
+          <div class="bg-white p-4 sm:p-5 rounded-2xl border border-amber-200 space-y-4 animate-fade-in shadow-xs">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-bold text-amber-950 flex items-center gap-1.5">
+                <span>➕</span> 新しい候補日・シフト枠を追加する
+              </h3>
+              <span class="text-[11px] text-stone-500">
+                ※既存の回答データは保持されたまま、新しい枠が追加されます
+              </span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-stone-700 mb-1">追加する日付</label>
+                <input
+                  type="date"
+                  value={newSlotDate.value}
+                  onChange={(e: any) => (newSlotDate.value = e.target.value)}
+                  class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-xs outline-none"
+                />
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-stone-700 mb-1">開始時刻</label>
+                <input
+                  type="time"
+                  value={newStartTime.value}
+                  onChange={(e: any) => (newStartTime.value = e.target.value)}
+                  class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-xs outline-none"
+                />
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-stone-700 mb-1">終了時刻</label>
+                <input
+                  type="time"
+                  value={newEndTime.value}
+                  onChange={(e: any) => (newEndTime.value = e.target.value)}
+                  class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-xs outline-none"
+                />
+              </div>
+            </div>
+
+            {/* プリセット */}
+            <div class="flex flex-wrap gap-1.5 items-center">
+              <span class="text-[11px] font-bold text-stone-500 mr-1">プリセット:</span>
+              {timePresets.map((p) => (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => {
+                    newStartTime.value = p.start
+                    newEndTime.value = p.end
+                  }}
+                  class="px-2.5 py-1 bg-stone-100 hover:bg-amber-100 text-stone-700 hover:text-amber-900 text-[11px] rounded-lg font-medium transition"
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            <div class="flex justify-end pt-2">
+              <button
+                type="button"
+                disabled={isUpdating.value}
+                onClick={handleAddSlots}
+                class="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-xs font-extrabold rounded-xl transition shadow-sm cursor-pointer"
+              >
+                {isUpdating.value ? '追加中...' : 'この枠を追加する'}
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {/* 2. イベント情報編集パネル */}
+        {isEditInfoOpen.value ? (
+          <div class="bg-white p-4 sm:p-5 rounded-2xl border border-amber-200 space-y-4 animate-fade-in shadow-xs">
+            <h3 class="text-sm font-bold text-amber-950 flex items-center gap-1.5">
+              <span>✏️</span> イベント基本情報の編集
+            </h3>
+
+            <div class="space-y-3">
+              <div>
+                <label class="block text-xs font-bold text-stone-700 mb-1">イベント名</label>
+                <input
+                  type="text"
+                  value={editTitle.value}
+                  onInput={(e: any) => (editTitle.value = e.target.value)}
+                  class="w-full border border-stone-300 rounded-xl px-3 py-2 text-sm outline-none font-medium"
+                />
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-stone-700 mb-1">予定時間 / 所要時間</label>
+                <select
+                  value={editDuration.value}
+                  onChange={(e: any) => (editDuration.value = Number(e.target.value))}
+                  class="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs outline-none bg-white font-medium"
+                >
+                  <option value={30}>30分</option>
+                  <option value={60}>1時間</option>
+                  <option value={90}>1時間30分</option>
+                  <option value={120}>2時間</option>
+                  <option value={180}>3時間</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-stone-700 mb-1">説明・補足</label>
+                <textarea
+                  rows={2}
+                  value={editDescription.value}
+                  onInput={(e: any) => (editDescription.value = e.target.value)}
+                  class="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs outline-none font-medium"
+                />
+              </div>
+            </div>
+
+            <div class="flex justify-end pt-2">
+              <button
+                type="button"
+                disabled={isUpdating.value}
+                onClick={handleUpdateInfo}
+                class="px-6 py-2.5 bg-stone-900 hover:bg-stone-800 text-white text-xs font-bold rounded-xl transition shadow-sm cursor-pointer"
+              >
+                {isUpdating.value ? '保存中...' : '変更を保存する'}
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         {/* 危険な操作 (削除) */}
-        <div class="border-t border-amber-200/80 pt-4 flex justify-end">
+        <div class="border-t border-amber-200/80 pt-3 flex justify-end">
           <button
             type="button"
             disabled={isUpdating.value}

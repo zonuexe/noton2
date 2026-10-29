@@ -29,6 +29,30 @@ export function generateToken(): string {
   return crypto.randomUUID()
 }
 
+// 主催者権限チェック共通関数
+export async function verifyOrganizerPermission(
+  db: D1Database,
+  eventId: string,
+  adminToken?: string,
+  currentUserId?: string | null
+): Promise<{ isAuthorized: boolean; event: { id: string; admin_token: string; creator_user_id: string | null } | null }> {
+  const event = await db
+    .prepare(`SELECT id, admin_token, creator_user_id FROM events WHERE id = ?`)
+    .bind(eventId)
+    .first<{ id: string; admin_token: string; creator_user_id: string | null }>()
+
+  if (!event) {
+    return { isAuthorized: false, event: null }
+  }
+
+  const isTokenAdmin = Boolean(adminToken && adminToken === event.admin_token)
+  const isUserAdmin = Boolean(
+    currentUserId && event.creator_user_id && currentUserId === event.creator_user_id
+  )
+
+  return { isAuthorized: isTokenAdmin || isUserAdmin, event }
+}
+
 // ユーザーの upsert (GitHub OAuth 連携)
 export async function upsertUser(
   db: D1Database,
@@ -132,7 +156,6 @@ export async function createEvent(
   // 2. time_slots テーブルに挿入 (各コマを独立した行として保存)
   if (input.slots && input.slots.length > 0) {
     const slotStatements = input.slots.map((slot, idx) => {
-      // 識別しやすい一意なスロットID (例: 'slot_8char')
       const slotId = generateShortId(10)
       return db
         .prepare(
@@ -316,6 +339,167 @@ export async function getEventById(
   }
 }
 
+// スロットの追加 (主催者専用)
+export async function addSlotsToEvent(
+  db: D1Database,
+  eventId: string,
+  newSlots: Array<{ slotDate: string; startTime: string; endTime: string }>,
+  adminToken?: string,
+  currentUserId?: string | null
+): Promise<{ addedCount: number }> {
+  const { isAuthorized } = await verifyOrganizerPermission(db, eventId, adminToken, currentUserId)
+  if (!isAuthorized) {
+    throw new Error('スロット追加の権限がありません')
+  }
+
+  if (!newSlots || newSlots.length === 0) {
+    return { addedCount: 0 }
+  }
+
+  // 既存のスロットを取得して重複を防ぐ
+  const existingRows = await db
+    .prepare(`SELECT slot_date, start_time, end_time FROM time_slots WHERE event_id = ?`)
+    .bind(eventId)
+    .all<{ slot_date: string; start_time: string; end_time: string }>()
+
+  const existingSet = new Set(
+    (existingRows.results || []).map((r) => `${r.slot_date}_${r.start_time}_${r.end_time}`)
+  )
+
+  const statements: D1PreparedStatement[] = []
+  let addedCount = 0
+
+  for (const s of newSlots) {
+    const key = `${s.slotDate}_${s.startTime}_${s.endTime}`
+    if (existingSet.has(key)) continue
+
+    const slotId = generateShortId(10)
+    statements.push(
+      db
+        .prepare(
+          `INSERT INTO time_slots (id, event_id, slot_date, start_time, end_time, sort_order)
+           VALUES (?, ?, ?, ?, ?, ?)`
+        )
+        .bind(slotId, eventId, s.slotDate, s.startTime, s.endTime, 0)
+    )
+    addedCount++
+  }
+
+  if (statements.length > 0) {
+    await db.batch(statements)
+    // 更新日時を更新
+    await db
+      .prepare(`UPDATE events SET updated_at = datetime('now') WHERE id = ?`)
+      .bind(eventId)
+      .run()
+  }
+
+  return { addedCount }
+}
+
+// スロットの削除 (主催者専用)
+export async function deleteSlotFromEvent(
+  db: D1Database,
+  eventId: string,
+  slotId: string,
+  adminToken?: string,
+  currentUserId?: string | null
+): Promise<boolean> {
+  const { isAuthorized } = await verifyOrganizerPermission(db, eventId, adminToken, currentUserId)
+  if (!isAuthorized) {
+    throw new Error('スロット削除の権限がありません')
+  }
+
+  const res = await db
+    .prepare(`DELETE FROM time_slots WHERE id = ? AND event_id = ?`)
+    .bind(slotId, eventId)
+    .run()
+
+  if (res.meta.changes > 0) {
+    await db
+      .prepare(`UPDATE events SET updated_at = datetime('now') WHERE id = ?`)
+      .bind(eventId)
+      .run()
+    return true
+  }
+  return false
+}
+
+// 特定日付の全スロット削除 (主催者専用)
+export async function deleteSlotsByDate(
+  db: D1Database,
+  eventId: string,
+  slotDate: string,
+  adminToken?: string,
+  currentUserId?: string | null
+): Promise<{ deletedCount: number }> {
+  const { isAuthorized } = await verifyOrganizerPermission(db, eventId, adminToken, currentUserId)
+  if (!isAuthorized) {
+    throw new Error('スロット削除の権限がありません')
+  }
+
+  const res = await db
+    .prepare(`DELETE FROM time_slots WHERE slot_date = ? AND event_id = ?`)
+    .bind(slotDate, eventId)
+    .run()
+
+  if (res.meta.changes > 0) {
+    await db
+      .prepare(`UPDATE events SET updated_at = datetime('now') WHERE id = ?`)
+      .bind(eventId)
+      .run()
+  }
+  return { deletedCount: res.meta.changes }
+}
+
+// イベント基本情報の更新 (主催者専用)
+export async function updateEventDetails(
+  db: D1Database,
+  eventId: string,
+  updates: {
+    title?: string
+    description?: string
+    durationMinutes?: number
+    organizerName?: string
+  },
+  adminToken?: string,
+  currentUserId?: string | null
+): Promise<boolean> {
+  const { isAuthorized } = await verifyOrganizerPermission(db, eventId, adminToken, currentUserId)
+  if (!isAuthorized) {
+    throw new Error('イベント編集の権限がありません')
+  }
+
+  const fields: string[] = []
+  const values: any[] = []
+
+  if (updates.title !== undefined) {
+    fields.push('title = ?')
+    values.push(updates.title.trim())
+  }
+  if (updates.description !== undefined) {
+    fields.push('description = ?')
+    values.push(updates.description.trim() || null)
+  }
+  if (updates.durationMinutes !== undefined) {
+    fields.push('duration_minutes = ?')
+    values.push(updates.durationMinutes)
+  }
+  if (updates.organizerName !== undefined) {
+    fields.push('organizer_name = ?')
+    values.push(updates.organizerName.trim())
+  }
+
+  if (fields.length === 0) return true
+
+  fields.push("updated_at = datetime('now')")
+  values.push(eventId)
+
+  const query = `UPDATE events SET ${fields.join(', ')} WHERE id = ?`
+  const res = await db.prepare(query).bind(...values).run()
+  return res.meta.changes > 0
+}
+
 export async function submitResponse(
   db: D1Database,
   eventId: string,
@@ -384,21 +568,8 @@ export async function confirmSlot(
   slotId?: string | null,
   currentUserId?: string | null
 ): Promise<boolean> {
-  const event = await db
-    .prepare(`SELECT id, admin_token, creator_user_id FROM events WHERE id = ?`)
-    .bind(eventId)
-    .first<{ id: string; admin_token: string; creator_user_id: string | null }>()
-
-  if (!event) {
-    return false
-  }
-
-  const isTokenAdmin = Boolean(adminToken && adminToken === event.admin_token)
-  const isUserAdmin = Boolean(
-    currentUserId && event.creator_user_id && currentUserId === event.creator_user_id
-  )
-
-  if (!isTokenAdmin && !isUserAdmin) {
+  const { isAuthorized } = await verifyOrganizerPermission(db, eventId, adminToken, currentUserId)
+  if (!isAuthorized) {
     return false
   }
 
@@ -420,21 +591,8 @@ export async function deleteEvent(
   adminToken?: string,
   currentUserId?: string | null
 ): Promise<boolean> {
-  const event = await db
-    .prepare(`SELECT id, admin_token, creator_user_id FROM events WHERE id = ?`)
-    .bind(eventId)
-    .first<{ id: string; admin_token: string; creator_user_id: string | null }>()
-
-  if (!event) {
-    return false
-  }
-
-  const isTokenAdmin = Boolean(adminToken && adminToken === event.admin_token)
-  const isUserAdmin = Boolean(
-    currentUserId && event.creator_user_id && currentUserId === event.creator_user_id
-  )
-
-  if (!isTokenAdmin && !isUserAdmin) {
+  const { isAuthorized } = await verifyOrganizerPermission(db, eventId, adminToken, currentUserId)
+  if (!isAuthorized) {
     return false
   }
 
