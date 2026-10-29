@@ -115,130 +115,155 @@ export const MatrixTable = defineVaporComponent({
     }
 
     return (
-      <div class="bg-white rounded-3xl p-4 sm:p-6 md:p-8 border border-stone-200 shadow-xl shadow-stone-100/50 space-y-5">
-        {/* ヘッダーエリア */}
-        <div class="space-y-1.5 border-b border-stone-200 pb-4">
-          <div class="flex items-center justify-between flex-wrap gap-2">
-            <div>
-              <h2 class="text-lg md:text-xl font-bold text-stone-800 font-['M_PLUS_Rounded_1c'] flex items-center gap-2">
-                <span class="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-stone-100 text-base">
-                  👥
-                </span>
-                <span>みんなの予定・シフト表</span>
-              </h2>
-              <p class="text-xs text-stone-500 mt-0.5">
-                各時間帯に入れるスタッフの人数と、各メンバーのシフト希望一覧です。
-              </p>
-            </div>
+      <div class="bg-white rounded-2xl border border-stone-200 shadow-md overflow-hidden">
+        {/* 灰色のタイトルバー (tonton スタイル) */}
+        <div class="bg-[#9c9c9c] px-4 py-2.5 flex items-center gap-2.5 shadow-xs">
+          <div class="w-6 h-6 rounded-md bg-[#f06292] flex items-center justify-center shrink-0 shadow-2xs">
+            <svg class="w-4 h-4 fill-white" viewBox="0 0 24 24">
+              <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+            </svg>
+          </div>
+          <h2 class="text-white font-bold text-sm sm:text-base tracking-wide font-['M_PLUS_Rounded_1c']">
+            みんなの予定
+          </h2>
+        </div>
 
-            <div class="flex items-center gap-4">
-              <button
-                type="button"
-                onClick={scrollToAnswerForm}
-                class="text-xs text-sky-600 hover:text-sky-800 font-bold underline cursor-pointer"
-              >
-                あなたの予定を追加・編集する ↓
-              </button>
-            </div>
+        {/* サブ説明文 ＆ 凡例 */}
+        <div class="px-4 py-3 bg-white border-b border-stone-100 flex flex-wrap items-center justify-between gap-3 text-xs sm:text-[13px] text-stone-700">
+          <div>
+            主催者が設定した日付と時間です。参加者の方は
+            <button
+              type="button"
+              onClick={scrollToAnswerForm}
+              class="text-blue-600 hover:text-blue-800 underline font-normal cursor-pointer mx-0.5"
+            >
+              あなたの予定を追加する
+            </button>
+            から予定を追加してください。
           </div>
 
           {/* 凡例バッジ */}
-          <div class="flex items-center gap-3 pt-2 text-xs flex-wrap">
-            <span class="flex items-center gap-1.5 font-bold text-stone-700">
-              <span class="w-4 h-4 rounded bg-sky-400 text-white text-[10px] flex items-center justify-center font-bold">
+          <div class="flex items-center gap-3 text-xs flex-wrap">
+            <span class="flex items-center gap-1 font-medium text-stone-700">
+              <span class="w-3.5 h-3.5 rounded-xs bg-[#58b4ff] text-white text-[10px] flex items-center justify-center font-bold">
                 •
               </span>
-              ◯（参加可能・シフト可）
+              ◯（参加可能）
             </span>
-            <span class="flex items-center gap-1.5 font-bold text-stone-700">
-              <span class="w-4 h-4 rounded bg-amber-400 text-white text-[9px] flex items-center justify-center font-bold">
+            <span class="flex items-center gap-1 font-medium text-stone-700">
+              <span class="w-3.5 h-3.5 rounded-xs bg-[#f5a623] text-white text-[8px] flex items-center justify-center font-bold">
                 ▲
               </span>
-              △（未定・調整可）
+              △（未定）
             </span>
-            <span class="flex items-center gap-1.5 font-bold text-stone-700">
-              <span class="w-4 h-4 rounded bg-stone-300 text-stone-600 text-[10px] flex items-center justify-center font-bold">
+            <span class="flex items-center gap-1 font-medium text-stone-700">
+              <span class="w-3.5 h-3.5 rounded-xs bg-[#d4d4d4] text-stone-600 text-[10px] flex items-center justify-center font-bold">
                 ×
               </span>
               ✕（不可）
             </span>
-            <span class="flex items-center gap-1.5 font-bold text-stone-500">
-              <span class="w-4 h-4 rounded bg-stone-200/80 border border-stone-300"></span>
-              枠外（シフトなし）
-            </span>
-            <span class="flex items-center gap-1.5 font-bold text-rose-600 ml-auto">
-              <span class="w-4 h-4 rounded bg-rose-100 border border-rose-300 text-rose-700 text-[10px] flex items-center justify-center font-bold">
-                0
-              </span>
-              人手不足（0名）
+            <span class="flex items-center gap-1 font-medium text-stone-500">
+              <span class="w-3.5 h-3.5 rounded-xs bg-[#dedede] border border-stone-300"></span>
+              枠外
             </span>
           </div>
         </div>
 
-        {props.event.slots.length === 0 ? (
-          <div class="py-12 text-center text-stone-400 text-sm space-y-2">
-            <p>シフト候補日時がまだ登録されていません。</p>
-            {props.adminToken ? (
-              <p class="text-xs text-amber-700 font-bold">
-                上部の「📅 日時・枠を追加する」からシフト枠を追加してください。
-              </p>
-            ) : null}
-          </div>
-        ) : (
-          /* 日付ごとのタイムラインブロック一覧 */
-          <div class="space-y-4">
-            {uniqueDates.value.map((dateStr) => {
-              const dateSlots = props.event.slots.filter((s) => s.slotDate === dateStr)
+        <div class="p-3 sm:p-4 md:p-5">
+          {props.event.slots.length === 0 ? (
+            <div class="py-12 text-center text-stone-400 text-sm space-y-2">
+              <p>候補日時がまだ登録されていません。</p>
+              {props.adminToken ? (
+                <p class="text-xs text-amber-700 font-bold">
+                  上部の「📅 日時・枠を追加する」から候補枠を追加してください。
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            /* 日付ごとのタイムラインブロック一覧 */
+            <div class="space-y-3">
+              {uniqueDates.value.map((dateStr) => {
+                const dateSlots = props.event.slots.filter((s) => s.slotDate === dateStr)
 
-              return (
-                <div
-                  key={dateStr}
-                  class="bg-stone-50/60 rounded-2xl border border-stone-200 p-3 sm:p-4 transition hover:border-stone-300 shadow-2xs"
-                >
-                  <div class="flex flex-col md:flex-row md:items-start gap-2 md:gap-4">
-                    {/* 左側: 日付 ＆ メンバー名カラム */}
-                    <div class="w-full md:w-44 shrink-0">
-                      <div class="flex items-center justify-between border-b border-stone-200 md:border-b-0 pb-1 md:pb-0 mb-1.5">
-                        <span class="font-bold text-sm text-stone-900 font-['M_PLUS_Rounded_1c']">
-                          {formatDateLabel(dateStr)}
-                        </span>
-                        {/* 主催者なら日付単位の削除が可能 */}
-                        {props.adminToken ? (
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteDateSlots(dateStr)}
-                            class="text-[11px] text-stone-400 hover:text-rose-600 font-bold cursor-pointer"
-                            title="この日のシフト枠をすべて削除"
-                          >
-                            削除
-                          </button>
-                        ) : null}
-                      </div>
-
-                      {props.event.participants.length === 0 ? (
-                        <div class="text-[11px] text-stone-400 py-1">回答者なし</div>
-                      ) : (
-                        <div class="space-y-1">
-                          {props.event.participants.map((p) => {
-                            const isMe = myResponse.value?.participantId === p.id
-                            const canDelete =
-                              props.adminToken || (isMe && myResponse.value?.editToken)
-
-                            return (
-                              <div
-                                key={p.id}
-                                class="h-7 sm:h-8 flex items-center justify-between text-xs pr-1"
+                return (
+                  <div
+                    key={dateStr}
+                    class="bg-white rounded-lg border border-stone-300 p-2.5 sm:p-3 shadow-2xs"
+                  >
+                    <div class="overflow-x-auto overflow-y-hidden">
+                      <div class="min-w-[700px] flex flex-col gap-1.5">
+                        {/* 1行目: 日付ラベル ＆ 24時間ヘッダー */}
+                        <div class="flex items-center gap-2">
+                          {/* 左側: 日付ボックス */}
+                          <div class="w-28 sm:w-32 md:w-36 shrink-0 h-6 sm:h-7 border border-stone-300 rounded bg-white px-2 py-0.5 text-xs font-bold text-stone-800 flex items-center justify-between">
+                            <span class="truncate font-['M_PLUS_Rounded_1c']">
+                              {formatDateLabel(dateStr)}
+                            </span>
+                            {props.adminToken ? (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteDateSlots(dateStr)}
+                                class="text-[10px] text-stone-400 hover:text-rose-600 font-bold cursor-pointer ml-1"
+                                title="この日の枠を削除"
                               >
-                                <span
-                                  class={`truncate ${
-                                    isMe
-                                      ? 'text-sky-700 font-extrabold underline'
-                                      : 'text-sky-600 hover:text-sky-800'
+                                ✕
+                              </button>
+                            ) : null}
+                          </div>
+
+                          {/* 右側: 24時間ヘッダー列 (06〜05) */}
+                          <div class="flex items-center h-6 sm:h-7 border-b border-stone-200">
+                            {TIMELINE_HOURS.map((hour) => {
+                              const slotsInHour = getSlotsForHour(dateSlots, dateStr, hour)
+                              const hasSlots = slotsInHour.length > 0
+
+                              return (
+                                <div
+                                  key={hour}
+                                  class={`w-[24px] sm:w-[28px] h-full flex flex-col justify-between items-center text-[11px] font-mono select-none border-r border-white/60 ${
+                                    hasSlots
+                                      ? 'bg-white text-stone-700'
+                                      : 'bg-[#dedede] text-stone-400'
                                   }`}
-                                  title={p.name}
+                                  title={`${hour}:00`}
+                                >
+                                  <span class="leading-none pt-1">{hour}</span>
+                                  <span class="w-[1px] h-[3px] bg-stone-300"></span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+
+                        {/* 参加者なしの場合 */}
+                        {props.event.participants.length === 0 ? (
+                          <div class="flex items-center gap-2 text-xs text-stone-400 py-1 pl-1">
+                            <span>回答者がまだいません。「あなたの予定を追加する」からご登録ください。</span>
+                          </div>
+                        ) : null}
+
+                        {/* 2行目以降: 各参加者の回答行 */}
+                        {props.event.participants.map((p) => {
+                          const isMe = myResponse.value?.participantId === p.id
+                          const canDelete =
+                            props.adminToken || (isMe && myResponse.value?.editToken)
+
+                          return (
+                            <div key={p.id} class="flex items-center gap-2">
+                              {/* 左側: メンバー名ボックス */}
+                              <div class="w-28 sm:w-32 md:w-36 shrink-0 h-6 sm:h-7 border border-stone-300 rounded bg-white px-2 py-0.5 text-xs text-stone-800 flex items-center justify-between">
+                                <button
+                                  type="button"
+                                  onClick={scrollToAnswerForm}
+                                  class={`text-left truncate cursor-pointer underline ${
+                                    isMe
+                                      ? 'text-sky-700 font-bold'
+                                      : 'text-blue-600 hover:text-blue-800'
+                                  }`}
+                                  title={`${p.name} (予定の編集・確認へ)`}
                                 >
                                   {p.name}
-                                </span>
+                                </button>
                                 {canDelete ? (
                                   <button
                                     type="button"
@@ -250,188 +275,173 @@ export const MatrixTable = defineVaporComponent({
                                   </button>
                                 ) : null}
                               </div>
-                            )
-                          })}
 
-                          {/* 集計行ラベル */}
-                          <div class="h-6 sm:h-7 flex items-center text-[11px] font-bold text-stone-700 border-t border-stone-200/80 pt-1">
-                            スタッフ人数
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                              {/* 右側: タイムライン回答バー */}
+                              <div class="flex items-center h-6 sm:h-7">
+                                {TIMELINE_HOURS.map((hour) => {
+                                  const slotsInHour = getSlotsForHour(dateSlots, dateStr, hour)
 
-                    {/* 右側: タイムライングリッド (横スクロール) */}
-                    <div class="flex-1 overflow-x-auto overflow-y-hidden pb-1 -mx-2 px-2 md:mx-0 md:px-0">
-                      <div class="min-w-[700px]">
-                        {/* 24時間ヘッダー行 */}
-                        <div class="flex border-b border-stone-200 mb-1">
-                          {TIMELINE_HOURS.map((hour) => (
-                            <div
-                              key={hour}
-                              class="w-[28px] sm:w-[32px] text-center text-[11px] text-stone-500 font-mono select-none"
-                            >
-                              {hour}
+                                  // スロット未設定時間はグレー一面
+                                  if (slotsInHour.length === 0) {
+                                    return (
+                                      <div
+                                        key={hour}
+                                        class="w-[24px] sm:w-[28px] h-full bg-[#dedede] border-r border-white/60"
+                                      />
+                                    )
+                                  }
+
+                                  const cellWidthClass =
+                                    slotsInHour.length > 1
+                                      ? 'w-[12px] sm:w-[14px]'
+                                      : 'w-[24px] sm:w-[28px]'
+
+                                  return (
+                                    <div key={hour} class="flex h-full">
+                                      {slotsInHour.map((slot) => {
+                                        const status: AnswerStatus | undefined = p.answers
+                                          ? p.answers[slot.id]
+                                          : undefined
+
+                                        let cellBg = 'bg-stone-100 text-stone-400'
+                                        let symbol = '-'
+                                        let title = `${slot.startTime}〜${slot.endTime} 未回答`
+
+                                        if (status === 'favorite' || status === 'available') {
+                                          cellBg = 'bg-[#58b4ff] text-white font-bold'
+                                          symbol = '•'
+                                          title = `${slot.startTime}〜${slot.endTime} 参加可能`
+                                        } else if (status === 'maybe') {
+                                          cellBg = 'bg-[#f5a623] text-white font-bold text-[9px]'
+                                          symbol = '▲'
+                                          title = `${slot.startTime}〜${slot.endTime} 未定`
+                                        } else if (status === 'unavailable') {
+                                          cellBg = 'bg-[#d4d4d4] text-stone-600 font-bold text-xs'
+                                          symbol = '×'
+                                          title = `${slot.startTime}〜${slot.endTime} 不可`
+                                        }
+
+                                        return (
+                                          <div
+                                            key={slot.id}
+                                            class={`${cellWidthClass} h-full flex items-center justify-center text-xs select-none border-r border-white/60 cursor-default ${cellBg}`}
+                                            title={`${p.name} - ${title}`}
+                                          >
+                                            <span>{symbol}</span>
+                                          </div>
+                                        )
+                                      })}
+                                    </div>
+                                  )
+                                })}
+                              </div>
                             </div>
-                          ))}
-                        </div>
+                          )
+                        })}
 
-                        {/* 各参加者のセル列 */}
-                        {props.event.participants.map((p) => (
-                          <div key={p.id} class="flex h-7 sm:h-8 items-center mb-1">
-                            {TIMELINE_HOURS.map((hour) => {
-                              const slotsInHour = getSlotsForHour(dateSlots, dateStr, hour)
-
-                              if (slotsInHour.length === 0) {
-                                return (
-                                  <div
-                                    key={hour}
-                                    class="w-[28px] sm:w-[32px] h-full bg-stone-200/70 border-r border-white/60 first:rounded-l last:rounded-r"
-                                    title={`${hour}:00 枠外`}
-                                  />
-                                )
-                              }
-
-                              const cellWidthClass =
-                                slotsInHour.length > 1
-                                  ? 'w-[14px] sm:w-[16px]'
-                                  : 'w-[28px] sm:w-[32px]'
-
-                              return (
-                                <div key={hour} class="flex h-full">
-                                  {slotsInHour.map((slot) => {
-                                    const status: AnswerStatus | undefined = p.answers
-                                      ? p.answers[slot.id]
-                                      : undefined
-
-                                    let cellBg = 'bg-stone-100 text-stone-400'
-                                    let symbol = '-'
-                                    let title = `${slot.startTime}〜${slot.endTime} 未回答`
-
-                                    if (status === 'favorite' || status === 'available') {
-                                      cellBg = 'bg-sky-400 text-white font-bold'
-                                      symbol = '•'
-                                      title = `${slot.startTime}〜${slot.endTime} シフト可能`
-                                    } else if (status === 'maybe') {
-                                      cellBg = 'bg-amber-400 text-white font-bold text-[9px]'
-                                      symbol = '▲'
-                                      title = `${slot.startTime}〜${slot.endTime} 調整可・未定`
-                                    } else if (status === 'unavailable') {
-                                      cellBg = 'bg-stone-300 text-stone-600 font-bold text-xs'
-                                      symbol = '×'
-                                      title = `${slot.startTime}〜${slot.endTime} 不可`
-                                    }
-
-                                    return (
-                                      <div
-                                        key={slot.id}
-                                        class={`${cellWidthClass} h-full flex items-center justify-center text-xs select-none border-r border-white/40 cursor-default ${cellBg}`}
-                                        title={`${p.name} - ${title}`}
-                                      >
-                                        <span>{symbol}</span>
-                                      </div>
-                                    )
-                                  })}
-                                </div>
-                              )
-                            })}
-                          </div>
-                        ))}
-
-                        {/* シフト人数・過不足集計行 */}
+                        {/* 最下部: 人数集計行 */}
                         {props.event.participants.length > 0 ? (
-                          <div class="flex h-6 sm:h-7 items-center border-t border-stone-200/80 pt-1">
-                            {TIMELINE_HOURS.map((hour) => {
-                              const slotsInHour = getSlotsForHour(dateSlots, dateStr, hour)
-                              if (slotsInHour.length === 0) {
+                          <div class="flex items-center gap-2 pt-1 border-t border-stone-200">
+                            {/* 左側: 人数ラベル */}
+                            <div class="w-28 sm:w-32 md:w-36 shrink-0 h-6 border border-stone-200 bg-stone-50 rounded px-2 py-0.5 text-[11px] font-bold text-stone-600 flex items-center justify-center">
+                              人数
+                            </div>
+
+                            {/* 右側: 人数集計セル列 */}
+                            <div class="flex items-center h-6">
+                              {TIMELINE_HOURS.map((hour) => {
+                                const slotsInHour = getSlotsForHour(dateSlots, dateStr, hour)
+
+                                if (slotsInHour.length === 0) {
+                                  return (
+                                    <div
+                                      key={hour}
+                                      class="w-[24px] sm:w-[28px] h-full bg-transparent"
+                                    />
+                                  )
+                                }
+
+                                const cellWidthClass =
+                                  slotsInHour.length > 1
+                                    ? 'w-[12px] sm:w-[14px]'
+                                    : 'w-[24px] sm:w-[28px]'
+
                                 return (
-                                  <div
-                                    key={hour}
-                                    class="w-[28px] sm:w-[32px] h-full bg-transparent"
-                                  />
-                                )
-                              }
+                                  <div key={hour} class="flex h-full">
+                                    {slotsInHour.map((slot) => {
+                                      let okCount = 0
+                                      let maybeCount = 0
+                                      props.event.participants.forEach((p) => {
+                                        const st = p.answers ? p.answers[slot.id] : undefined
+                                        if (st === 'favorite' || st === 'available') {
+                                          okCount++
+                                        } else if (st === 'maybe') {
+                                          maybeCount++
+                                        }
+                                      })
 
-                              const cellWidthClass =
-                                slotsInHour.length > 1
-                                  ? 'w-[14px] sm:w-[16px]'
-                                  : 'w-[28px] sm:w-[32px]'
+                                      let summaryClass = 'text-[11px] font-bold'
+                                      let displayText = String(okCount)
 
-                              return (
-                                <div key={hour} class="flex h-full">
-                                  {slotsInHour.map((slot) => {
-                                    let okCount = 0
-                                    let maybeCount = 0
-                                    props.event.participants.forEach((p) => {
-                                      const st = p.answers ? p.answers[slot.id] : undefined
-                                      if (st === 'favorite' || st === 'available') {
-                                        okCount++
-                                      } else if (st === 'maybe') {
-                                        maybeCount++
+                                      if (okCount === 0) {
+                                        summaryClass +=
+                                          ' bg-rose-100 text-rose-700 font-extrabold rounded-xs'
+                                        displayText = '0'
+                                      } else if (okCount === 1) {
+                                        summaryClass += ' bg-sky-50 text-sky-800 rounded-xs'
+                                      } else {
+                                        summaryClass +=
+                                          ' bg-sky-100 text-sky-900 font-extrabold rounded-xs'
                                       }
-                                    })
 
-                                    let summaryClass = 'text-[11px] font-bold'
-                                    let displayText = String(okCount)
+                                      const tooltip = `${slot.startTime}〜${slot.endTime} 参加可能: ${okCount}名 (未定: ${maybeCount}名)`
 
-                                    if (okCount === 0) {
-                                      summaryClass +=
-                                        ' bg-rose-100 text-rose-700 font-extrabold rounded'
-                                      displayText = '0'
-                                    } else if (okCount === 1) {
-                                      summaryClass += ' bg-amber-100 text-amber-900 rounded'
-                                    } else {
-                                      summaryClass +=
-                                        ' bg-sky-100 text-sky-800 font-extrabold rounded'
-                                    }
-
-                                    const tooltip = `${slot.startTime}〜${slot.endTime} シフト可能: ${okCount}名 (未定: ${maybeCount}名)`
-
-                                    return (
-                                      <div
-                                        key={slot.id}
-                                        class={`${cellWidthClass} h-full flex items-center justify-center ${summaryClass}`}
-                                        title={tooltip}
-                                      >
-                                        <span>{displayText}</span>
-                                      </div>
-                                    )
-                                  })}
-                                </div>
-                              )
-                            })}
+                                      return (
+                                        <div
+                                          key={slot.id}
+                                          class={`${cellWidthClass} h-full flex items-center justify-center ${summaryClass} border-r border-white/60`}
+                                          title={tooltip}
+                                        >
+                                          <span>{displayText}</span>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                )
+                              })}
+                            </div>
                           </div>
                         ) : null}
                       </div>
                     </div>
                   </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-
-        {/* コメント一覧カード */}
-        {props.event.participants.some((p) => p.comment) ? (
-          <div class="bg-stone-50 rounded-2xl p-4 border border-stone-200 space-y-2 mt-4">
-            <h3 class="text-xs font-bold text-stone-700 flex items-center gap-1.5">
-              <span>💬</span> スタッフからのコメント・連絡事項
-            </h3>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-              {props.event.participants
-                .filter((p) => p.comment)
-                .map((p) => (
-                  <div
-                    key={`comm-${p.id}`}
-                    class="bg-white p-2.5 rounded-xl border border-stone-200 shadow-2xs flex items-start gap-2"
-                  >
-                    <span class="font-bold text-stone-800 shrink-0">{p.name}:</span>
-                    <span class="text-stone-600 break-words">{p.comment}</span>
-                  </div>
-                ))}
+                )
+              })}
             </div>
-          </div>
-        ) : null}
+          )}
+
+          {/* コメント一覧カード */}
+          {props.event.participants.some((p) => p.comment) ? (
+            <div class="bg-stone-50 rounded-xl p-3 sm:p-4 border border-stone-200 space-y-2 mt-4">
+              <h3 class="text-xs font-bold text-stone-700 flex items-center gap-1.5">
+                <span>💬</span> 参加者からのコメント・連絡事項
+              </h3>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                {props.event.participants
+                  .filter((p) => p.comment)
+                  .map((p) => (
+                    <div
+                      key={`comm-${p.id}`}
+                      class="bg-white p-2.5 rounded-lg border border-stone-200 shadow-2xs flex items-start gap-2"
+                    >
+                      <span class="font-bold text-stone-800 shrink-0">{p.name}:</span>
+                      <span class="text-stone-600 break-words">{p.comment}</span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
       </div>
     )
   },

@@ -85,7 +85,7 @@ export const AdminControls = defineVaporComponent({
           throw new Error(data.error || 'スロットの追加に失敗しました')
         }
 
-        alert(`${data.addedCount}件のシフト枠を追加しました！`)
+        alert(`${data.addedCount}件の枠を追加しました！`)
         props.onReload()
       } catch (e: any) {
         alert(e.message || '通信エラーが発生しました')
@@ -133,7 +133,7 @@ export const AdminControls = defineVaporComponent({
     const handleDeleteEvent = async () => {
       if (
         !confirm(
-          'このイベントと全ての回答・シフトデータを削除してもよろしいですか？この操作は取り消せません。'
+          'このイベントと全ての回答データを削除してもよろしいですか？この操作は取り消せません。'
         )
       ) {
         return
@@ -166,13 +166,13 @@ export const AdminControls = defineVaporComponent({
       const origin = typeof window !== 'undefined' ? window.location.origin : ''
       const shareUrl = `${origin}/events/${props.event.id}`
 
-      return `【シフト・日程調整のお願い】${props.event.title}
+      return `【日程調整のお願い】${props.event.title}
 
-スタッフの皆さま、シフトの入力をお願いいたします！
-以下のURLから入れる日時をご登録ください。
+皆さま、日程のご回答をお願いいたします！
+以下のURLからご都合のよい日時をご登録ください。
 
 👤 主催者: ${props.event.organizerName}
-▼ 入力・シフト表はこちら
+▼ 詳細・回答一覧はこちら
 ${shareUrl}
 
 よろしくお願いいたします！`
@@ -265,12 +265,12 @@ ${shareUrl}
           </button>
         </div>
 
-        {/* 1. 日時・シフト枠追加パネル */}
+        {/* 1. 日時・候補枠追加パネル */}
         {isAddSlotOpen.value ? (
           <div class="bg-white p-4 sm:p-5 rounded-2xl border border-amber-200 space-y-4 animate-fade-in shadow-xs">
             <div class="flex items-center justify-between">
               <h3 class="text-sm font-bold text-amber-950 flex items-center gap-1.5">
-                <span>➕</span> 新しい候補日・シフト枠を追加する
+                <span>➕</span> 新しい候補日時・枠を追加する
               </h3>
               <span class="text-[11px] text-stone-500">
                 ※既存の回答データは保持されたまま、新しい枠が追加されます
