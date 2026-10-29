@@ -21,6 +21,20 @@ app.use('*', async (c, next) => {
   c.header('X-Content-Type-Options', 'nosniff')
   c.header('X-Frame-Options', 'DENY')
   c.header('Referrer-Policy', 'strict-origin-when-cross-origin')
+
+  // サーチエンジン制御: トップページ、利用規約、プライバシーポリシー、robots.txt、静的アセット以外は検索エンジンインデックス対象外
+  const url = new URL(c.req.url)
+  const pathname = url.pathname
+  const isSearchEngineAllowed =
+    pathname === '/' ||
+    pathname === '/terms' ||
+    pathname === '/privacy' ||
+    pathname === '/robots.txt' ||
+    pathname.startsWith('/static/')
+  if (!isSearchEngineAllowed) {
+    c.header('X-Robots-Tag', 'noindex, nofollow')
+  }
+
   // 動的ルートでの認証トークン・個人回答のキャッシュ汚染防止
   if (!c.res.headers.has('Cache-Control')) {
     c.header('Cache-Control', 'private, no-cache, no-store, must-revalidate')

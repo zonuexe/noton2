@@ -1021,3 +1021,32 @@ pages.get('/privacy', (c) => {
     }
   )
 })
+
+// robots.txt (検索エンジンのクロール制御: トップ、利用規約、プライバシーポリシー、静的アセット以外を Disallow)
+pages.get('/robots.txt', (c) => {
+  const robotsTxt = `# SNSリンクプレビュー用ボット（OGP展開のためアクセス許可）
+User-agent: Twitterbot
+Allow: /
+
+User-agent: facebookexternalhit
+Allow: /
+
+User-agent: Discordbot
+Allow: /
+
+User-agent: Slackbot
+Allow: /
+
+# 一般サーチエンジン（トップページ、利用規約、プライバシーポリシー、静的リソースのみクロール許可）
+User-agent: *
+Allow: /$
+Allow: /terms
+Allow: /privacy
+Allow: /static/
+Disallow: /
+`
+  return c.text(robotsTxt, 200, {
+    'Content-Type': 'text/plain; charset=utf-8',
+    'Cache-Control': 'public, max-age=86400',
+  })
+})

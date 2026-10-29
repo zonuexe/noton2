@@ -11,6 +11,7 @@ interface LayoutProps {
   description?: string
   ogImage?: string
   ogUrl?: string
+  noindex?: boolean
 }
 
 declare module 'hono' {
@@ -19,7 +20,7 @@ declare module 'hono' {
   }
 }
 
-export const renderer = jsxRenderer(({ children, title, description, ogImage, ogUrl }, c) => {
+export const renderer = jsxRenderer(({ children, title, description, ogImage, ogUrl, noindex }, c) => {
   const user = c.get('user') as User | null
   const isAdmin = Boolean(c.get('isAdmin') ?? isAdminUser(user, c.env as Partial<AuthBindings>))
   const pageTitle = title ? `${title} | noton2` : 'noton2 - ログイン不要の超高速日程調整ツール'
@@ -28,7 +29,16 @@ export const renderer = jsxRenderer(({ children, title, description, ogImage, og
 
   // OGP URL からクエリパラメータ (adminToken 等) を確実に除外して生成
   const requestUrl = new URL(c.req.url)
-  const currentUrl = ogUrl || `${requestUrl.origin}${requestUrl.pathname}`
+  const pathname = requestUrl.pathname
+  const currentUrl = ogUrl || `${requestUrl.origin}${pathname}`
+
+  // トップページ (/)、利用規約 (/terms)、プライバシーポリシー (/privacy) 以外は検索エンジンにインデックスさせない
+  const isSearchEngineAllowed = pathname === '/' || pathname === '/terms' || pathname === '/privacy'
+  const isNoIndex = noindex !== undefined ? noindex : !isSearchEngineAllowed
+
+  if (isNoIndex) {
+    c.header('X-Robots-Tag', 'noindex, nofollow')
+  }
 
   // 安全な外部URLの検証 (http/https のみ許可)
   const safeProfileUrl =
@@ -61,6 +71,13 @@ export const renderer = jsxRenderer(({ children, title, description, ogImage, og
         <meta name="twitter:title" content={pageTitle} />
         <meta name="twitter:description" content={pageDescription} />
         <link rel="canonical" href={currentUrl} />
+
+        {/* サーチエンジン制御: トップページ・利用規約・プライバシーポリシー以外はインデックス・クロール拒否 */}
+        {isNoIndex ? (
+          <meta name="robots" content="noindex, nofollow" />
+        ) : (
+          <meta name="robots" content="index, follow" />
+        )}
 
         {/* Google Fonts (Noto Sans JP) */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />

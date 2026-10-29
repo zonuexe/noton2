@@ -570,4 +570,100 @@ describe('server/api - 入力バリデーションと認可チェック', () => 
       expect(html).toContain('href="/admin"')
     })
   })
+
+  describe('サーチエンジン向けクロール・インデックス制御', () => {
+    function createSearchEngineTestApp() {
+      const app = new Hono<{ Bindings: any; Variables: { user: User | null } }>()
+      app.use('*', async (c, next) => {
+        c.set('user', null)
+        c.env = {
+          DB: {
+            prepare: () => ({
+              bind: () => ({
+                first: async () => ({
+                  id: 'ev-test',
+                  title: '非公開テストイベント',
+                  organizer_name: '主催者',
+                  created_at: '2026-10-30',
+                }),
+                all: async () => ({ results: [], success: true }),
+              }),
+            }),
+          } as any,
+        }
+        await next()
+      })
+      app.use('*', renderer)
+      app.route('/', pages)
+      return app
+    }
+
+    it('GET /robots.txt: 適切なクロール制御テキストを返すこと', async () => {
+      const app = createSearchEngineTestApp()
+      const res = await app.request('/robots.txt')
+
+      expect(res.status).toBe(200)
+      expect(res.headers.get('content-type')).toContain('text/plain')
+      const text = await res.text()
+      expect(text).toContain('User-agent: *')
+      expect(text).toContain('Allow: /$')
+      expect(text).toContain('Allow: /terms')
+      expect(text).toContain('Allow: /privacy')
+      expect(text).toContain('Allow: /static/')
+      expect(text).toContain('Disallow: /')
+      // SNS ボットの許可定義が含まれること
+      expect(text).toContain('User-agent: Twitterbot')
+      expect(text).toContain('User-agent: Discordbot')
+    })
+
+    it('GET / (トップページ): index, follow が指定され X-Robots-Tag が付かないこと', async () => {
+      const app = createSearchEngineTestApp()
+      const res = await app.request('/')
+
+      expect(res.status).toBe(200)
+      expect(res.headers.get('x-robots-tag')).toBeNull()
+      const html = await res.text()
+      expect(html).toContain('<meta name="robots" content="index, follow"')
+    })
+
+    it('GET /terms (利用規約): index, follow が指定され X-Robots-Tag が付かないこと', async () => {
+      const app = createSearchEngineTestApp()
+      const res = await app.request('/terms')
+
+      expect(res.status).toBe(200)
+      expect(res.headers.get('x-robots-tag')).toBeNull()
+      const html = await res.text()
+      expect(html).toContain('<meta name="robots" content="index, follow"')
+    })
+
+    it('GET /privacy (プライバシーポリシー): index, follow が指定され X-Robots-Tag が付かないこと', async () => {
+      const app = createSearchEngineTestApp()
+      const res = await app.request('/privacy')
+
+      expect(res.status).toBe(200)
+      expect(res.headers.get('x-robots-tag')).toBeNull()
+      const html = await res.text()
+      expect(html).toContain('<meta name="robots" content="index, follow"')
+    })
+
+    it('GET /new (イベント作成): noindex, nofollow と X-Robots-Tag が指定されること', async () => {
+      const app = createSearchEngineTestApp()
+      const res = await app.request('/new')
+
+      expect(res.status).toBe(200)
+      expect(res.headers.get('x-robots-tag')).toBe('noindex, nofollow')
+      const html = await res.text()
+      expect(html).toContain('<meta name="robots" content="noindex, nofollow"')
+    })
+
+    it('GET /events/:id (イベント詳細・回答画面): noindex, nofollow と X-Robots-Tag が指定されること', async () => {
+      const app = createSearchEngineTestApp()
+      const res = await app.request('/events/ev-test')
+
+      expect(res.status).toBe(200)
+      expect(res.headers.get('x-robots-tag')).toBe('noindex, nofollow')
+      const html = await res.text()
+      expect(html).toContain('<meta name="robots" content="noindex, nofollow"')
+    })
+  })
 })
