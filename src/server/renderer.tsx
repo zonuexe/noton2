@@ -137,12 +137,32 @@ export const renderer = jsxRenderer(({ children, title, description, ogImage, og
         </div>
 
         <footer class="mt-20 border-t border-rose-100 bg-white/60 py-8 text-center text-xs text-stone-400">
-          <div class="max-w-5xl mx-auto px-4 flex flex-col items-center gap-2">
+          <div class="max-w-5xl mx-auto px-4 flex flex-col items-center gap-2.5">
             <div class="flex items-center gap-1 font-['M_PLUS_Rounded_1c'] font-bold text-stone-600 text-sm">
               <span>🐷</span> noton2
             </div>
             <p>Cloudflare で完結する超高速・日程調整ツールです。</p>
-            <p class="text-[11px] text-stone-400">Powered by Cloudflare Workers & D1 + Vue JSX Vapor</p>
+
+            <div class="flex items-center gap-4 text-xs text-stone-500 pt-0.5">
+              <a href="/terms" class="hover:text-rose-600 hover:underline">
+                利用規約
+              </a>
+              <span>•</span>
+              <a href="/privacy" class="hover:text-rose-600 hover:underline">
+                プライバシーポリシー
+              </a>
+              <span>•</span>
+              <a
+                href="https://github.com/zonuexe/noton2"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="hover:text-rose-600 hover:underline inline-flex items-center gap-1"
+              >
+                GitHub (OSS)
+              </a>
+            </div>
+
+            <p class="text-[11px] text-stone-400 pt-1">Powered by Cloudflare Workers & D1 + Vue JSX Vapor</p>
           </div>
         </footer>
       </body>

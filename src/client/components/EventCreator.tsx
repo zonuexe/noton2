@@ -788,7 +788,7 @@ export const EventCreator = defineVaporComponent({
               </div>
 
               {/* 送信ボタン */}
-              <div class="pt-4">
+              <div class="pt-4 space-y-2">
                 {user.value ? (
                   <button
                     type="button"
@@ -816,6 +816,17 @@ export const EventCreator = defineVaporComponent({
                     <span>GitHubでログインして作成する</span>
                   </a>
                 )}
+                <p class="text-center text-[11px] text-stone-400">
+                  作成することで、
+                  <a href="/terms" target="_blank" class="underline hover:text-stone-600">
+                    利用規約
+                  </a>
+                  および
+                  <a href="/privacy" target="_blank" class="underline hover:text-stone-600">
+                    プライバシーポリシー
+                  </a>
+                  に同意したものとみなされます。
+                </p>
               </div>
             </div>
           </div>

@@ -63,10 +63,10 @@ pages.get('/', (c) => {
             🎯
           </div>
           <h2 class="text-base font-bold text-stone-800 mb-2 font-['M_PLUS_Rounded_1c']">
-            直感的な 4段階回答
+            直感的な 3段階回答
           </h2>
           <p class="text-sm text-stone-600 leading-relaxed">
-            ◎（希望）、◯（参加可能）、△（未定）、✕（不可）の4段階。参加者は登録不要で、一括選択もストレスフリー。
+            ◯（参加可能）、△（未定）、✕（不可）の3段階。参加者は登録不要で、ドラッグ塗りや一括選択もストレスフリー。
           </p>
         </div>
 
@@ -148,6 +148,248 @@ pages.get('/events/:id', async (c) => {
     {
       title: `${event.title} の日程調整`,
       description: ogpDesc,
+    }
+  )
+})
+
+// 利用規約ページ
+pages.get('/terms', (c) => {
+  return c.render(
+    <div class="max-w-3xl mx-auto space-y-6 py-4 md:py-8">
+      <div class="bg-white rounded-3xl p-6 sm:p-8 md:p-10 border border-rose-100 shadow-md space-y-8 text-stone-700 leading-relaxed">
+        <div class="border-b border-rose-100 pb-4">
+          <h1 class="text-2xl sm:text-3xl font-extrabold text-stone-900 font-['M_PLUS_Rounded_1c']">
+            利用規約
+          </h1>
+          <p class="text-xs text-stone-400 mt-1">最終更新日: 2026年10月29日</p>
+        </div>
+
+        <p class="text-sm">
+          本利用規約（以下「本規約」）は、noton2（以下「本サービス」）の利用条件を定めるものです。利用者の皆さま（以下「ユーザー」）には、本規約に同意いただいた上で本サービスをご利用いただきます。
+        </p>
+
+        <section class="space-y-3">
+          <h2 class="text-base font-bold text-stone-900 border-b border-stone-200 pb-1 font-['M_PLUS_Rounded_1c']">
+            第1条（適用および定義）
+          </h2>
+          <ol class="list-decimal list-inside space-y-2 text-sm pl-1">
+            <li>本規約は、ユーザーと本サービス運営者（以下「運営者」）との間の本サービスの利用に関わる一切の関係に適用されます。</li>
+            <li>「主催者」とは、外部アカウント連携（GitHub等）による認証を行い、イベントを作成・管理するユーザーを指します。</li>
+            <li>「参加者」とは、主催者が発行したイベントURLにアクセスし、日程等の回答・登録を行うユーザーを指します。</li>
+          </ol>
+        </section>
+
+        <section class="space-y-3">
+          <h2 class="text-base font-bold text-stone-900 border-b border-stone-200 pb-1 font-['M_PLUS_Rounded_1c']">
+            第2条（サービスの特徴および公開性）
+          </h2>
+          <ol class="list-decimal list-inside space-y-2 text-sm pl-1">
+            <li>本サービスは、特定のURLを共有することで参加者がアカウント登録なしに日程調整・出欠確認を行えるツールです。</li>
+            <li>本サービス上に登録された情報（イベント情報、参加者の表示名、回答内容、コメント等）は、当該イベントのURLを知る第三者に対して公開されます。</li>
+            <li>ユーザーは、本名・電話番号・メールアドレス・住所・クレジットカード情報・パスワード等の機密情報や個人を特定できる情報を、本サービス上（表示名やコメント欄等）に入力してはならないものとします。</li>
+          </ol>
+        </section>
+
+        <section class="space-y-3">
+          <h2 class="text-base font-bold text-stone-900 border-b border-stone-200 pb-1 font-['M_PLUS_Rounded_1c']">
+            第3条（禁止事項）
+          </h2>
+          <p class="text-sm">ユーザーは、本サービスの利用にあたり、以下の行為をしてはなりません。</p>
+          <ol class="list-decimal list-inside space-y-1.5 text-sm pl-1">
+            <li>法令または公序良俗に違反する行為、または犯罪行為に関連する行為</li>
+            <li>運営者、他のユーザー、または第三者の知的財産権、肖像権、プライバシー、名誉その他の権利・利益を侵害する行為</li>
+            <li>第三者の個人情報や機密情報を無断で掲載・漏洩させる行為</li>
+            <li>本サービスのサーバーやネットワークシステムに過度な負荷をかける行為（不正アクセス、過度な連続リクエスト、スクレイピング等）</li>
+            <li>本サービスの不具合や脆弱性を意図的に突いた不正利用</li>
+            <li>スパム行為、営利目的の無差別な宣伝・勧誘・イベント作成</li>
+            <li>反社会的勢力等への利益供与行為</li>
+            <li>その他、運営者が不適切と合理的に判断する行為</li>
+          </ol>
+        </section>
+
+        <section class="space-y-3">
+          <h2 class="text-base font-bold text-stone-900 border-b border-stone-200 pb-1 font-['M_PLUS_Rounded_1c']">
+            第4条（サービスの停止・変更・終了およびデータの削除）
+          </h2>
+          <ol class="list-decimal list-inside space-y-2 text-sm pl-1">
+            <li>運営者は、システムの保守点検、障害対応、天災、その他運用上必要な場合、ユーザーへの事前の通知なく本サービスの提供を一時中断または停止することができます。</li>
+            <li>運営者は、事前の予告なく本サービスの内容を変更し、または本サービスの提供を終了することができます。</li>
+            <li>運営者は、以下のいずれかに該当する場合、事前の予告なくイベントデータや回答データを削除できるものとします。
+              <ul class="list-disc list-inside pl-4 mt-1 space-y-1 text-stone-600">
+                <li>第3条の禁止事項に該当すると合理的に判断される場合</li>
+                <li>作成または最終アクセスから一定期間が経過した休眠イベント</li>
+                <li>システムの容量確保、保全、または運用上やむを得ない場合</li>
+              </ul>
+            </li>
+          </ol>
+        </section>
+
+        <section class="space-y-3">
+          <h2 class="text-base font-bold text-stone-900 border-b border-stone-200 pb-1 font-['M_PLUS_Rounded_1c']">
+            第5条（免責事項・無保証）
+          </h2>
+          <ol class="list-decimal list-inside space-y-2 text-sm pl-1">
+            <li>本サービスは現状有姿（AS-IS）で提供されます。運営者は、本サービスの正確性、安全性、有用性、特定目的への適合性、データの完全性および永続性について、いかなる保証も行いません。</li>
+            <li>運営者は、本サービスの利用、中断、停止、終了、データの消失、日程調整の齟齬等によりユーザーまたは第三者に生じたいかなる損害についても、一切の責任を負いません。</li>
+          </ol>
+        </section>
+
+        <section class="space-y-3">
+          <h2 class="text-base font-bold text-stone-900 border-b border-stone-200 pb-1 font-['M_PLUS_Rounded_1c']">
+            第6条（規約の改定）
+          </h2>
+          <p class="text-sm">
+            運営者は、必要と判断した場合には、本規約をいつでも変更することができます。改定後の規約は、本サービス上に掲載された時点より効力を生じるものとします。
+          </p>
+        </section>
+
+        <section class="space-y-3">
+          <h2 class="text-base font-bold text-stone-900 border-b border-stone-200 pb-1 font-['M_PLUS_Rounded_1c']">
+            第7条（準拠法および管轄裁判所）
+          </h2>
+          <p class="text-sm">本規約の解釈および適用は、日本法に準拠するものとします。</p>
+        </section>
+      </div>
+    </div>,
+    {
+      title: '利用規約',
+      description: 'noton2 の利用規約です。本サービスをご利用いただくにあたっての条件を定めています。',
+    }
+  )
+})
+
+// プライバシーポリシーページ
+pages.get('/privacy', (c) => {
+  return c.render(
+    <div class="max-w-3xl mx-auto space-y-6 py-4 md:py-8">
+      <div class="bg-white rounded-3xl p-6 sm:p-8 md:p-10 border border-rose-100 shadow-md space-y-8 text-stone-700 leading-relaxed">
+        <div class="border-b border-rose-100 pb-4">
+          <h1 class="text-2xl sm:text-3xl font-extrabold text-stone-900 font-['M_PLUS_Rounded_1c']">
+            プライバシーポリシー
+          </h1>
+          <p class="text-xs text-stone-400 mt-1">最終更新日: 2026年10月29日</p>
+        </div>
+
+        <p class="text-sm">
+          noton2（以下「本サービス」）は、利用者のプライバシーを尊重し、安心してご利用いただけるよう情報の適切な保護・管理に努めます。本ポリシーでは、本サービスにおける情報の取り扱い方針について説明します。
+        </p>
+
+        <section class="space-y-3">
+          <h2 class="text-base font-bold text-stone-900 border-b border-stone-200 pb-1 font-['M_PLUS_Rounded_1c']">
+            1. 取得する情報および取得方法
+          </h2>
+          <p class="text-sm">
+            本サービスでは、サービス提供および円滑な運営に必要な範囲で、以下の情報を取得・保存します。
+          </p>
+          <ul class="list-disc list-inside space-y-2.5 text-sm pl-1">
+            <li>
+              <strong class="text-stone-800">イベント主催者に関する情報:</strong>
+              <div class="text-stone-600 pl-5 text-xs sm:text-sm">
+                外部アカウント連携（GitHub OAuth等）に伴い提供されるアカウント識別情報（ユーザーID、公開プロフィール情報、アイコン画像等）、およびイベントの作成・管理にあたり登録された情報（イベント名、候補日時、説明、その他付随する設定情報）
+              </div>
+            </li>
+            <li>
+              <strong class="text-stone-800">イベント参加者に関する情報:</strong>
+              <div class="text-stone-600 pl-5 text-xs sm:text-sm">
+                参加登録や日程回答にあたり入力された情報（表示名、日程・希望等に関する回答内容、メッセージ・コメント、その他付随する入力項目）
+              </div>
+            </li>
+            <li>
+              <strong class="text-stone-800">本人識別および認証のための技術情報:</strong>
+              <div class="text-stone-600 pl-5 text-xs sm:text-sm">
+                ログイン状態の維持や、参加者自身による回答の再確認・編集を可能にするための識別情報（Cookie、ローカルストレージ等のセッション・認証トークン）
+              </div>
+            </li>
+            <li>
+              <strong class="text-stone-800">アクセスログ・システム情報:</strong>
+              <div class="text-stone-600 pl-5 text-xs sm:text-sm">
+                サービスの安定運用、パフォーマンス向上、セキュリティ確保のためにインフラ（Cloudflare等）により自動的に記録されるアクセス情報（IPアドレス、端末・ブラウザ情報、アクセス日時等）
+              </div>
+            </li>
+          </ul>
+          <div class="text-xs text-stone-500 bg-rose-50/60 p-3 rounded-xl border border-rose-100">
+            ※本サービスでは、利用者のパスワード、電話番号、クレジットカード情報等の機密性の高い個人情報を収集・要求することはありません。
+          </div>
+        </section>
+
+        <section class="space-y-3">
+          <h2 class="text-base font-bold text-stone-900 border-b border-stone-200 pb-1 font-['M_PLUS_Rounded_1c']">
+            2. 情報の利用目的
+          </h2>
+          <p class="text-sm">取得した情報は、以下の目的でのみ利用します。</p>
+          <ol class="list-decimal list-inside space-y-1.5 text-sm pl-1">
+            <li>日程調整および出欠集計機能の提供・運営</li>
+            <li>主催者の身元明示によるなりすまし・悪用防止</li>
+            <li>参加者による回答の再確認・編集機能の提供</li>
+            <li>不正アクセスやスパム等の防止、システムのセキュリティ維持</li>
+            <li>本サービスの機能改善および不具合の調査・対応</li>
+          </ol>
+        </section>
+
+        <section class="space-y-3">
+          <h2 class="text-base font-bold text-stone-900 border-b border-stone-200 pb-1 font-['M_PLUS_Rounded_1c']">
+            3. 情報の公開範囲
+          </h2>
+          <ol class="list-decimal list-inside space-y-2 text-sm pl-1">
+            <li>
+              本サービスで作成されたイベントの情報（イベント名、主催者情報、候補日時、参加者の表示名、回答状況、コメント等）は、
+              <strong class="text-rose-700">当該イベントのURLを知る第三者に公開されます。</strong>
+            </li>
+            <li>
+              意図しない情報公開を防ぐため、表示名やコメント欄等に本名、連絡先、その他機密情報を記載しないようご注意ください。
+            </li>
+          </ol>
+        </section>
+
+        <section class="space-y-3">
+          <h2 class="text-base font-bold text-stone-900 border-b border-stone-200 pb-1 font-['M_PLUS_Rounded_1c']">
+            4. 外部サービスの利用とCookie
+          </h2>
+          <ul class="list-disc list-inside space-y-2 text-sm pl-1">
+            <li>
+              <strong class="text-stone-800">GitHub OAuth:</strong> 主催者アカウントの身元確認および認証に GitHub API を利用しています。
+            </li>
+            <li>
+              <strong class="text-stone-800">Cloudflare:</strong> サービスの配信、セキュリティ保護、データ保管のために Cloudflare のインフラストラクチャを利用しています。
+            </li>
+            <li>
+              <strong class="text-stone-800">行動追跡・広告の不使用:</strong> 本サービスでは、第三者による行動追跡広告や外部トラッキング用Cookieは一切使用していません。
+            </li>
+          </ul>
+        </section>
+
+        <section class="space-y-3">
+          <h2 class="text-base font-bold text-stone-900 border-b border-stone-200 pb-1 font-['M_PLUS_Rounded_1c']">
+            5. 情報の管理・削除
+          </h2>
+          <ol class="list-decimal list-inside space-y-2 text-sm pl-1">
+            <li>ユーザーは、イベント画面を通じていつでも自身の回答や作成したイベントを削除することができます。</li>
+            <li>一定期間アクセスがないイベントデータは、サーバーの定期メンテナンス等により自動的に削除される場合があります。</li>
+          </ol>
+        </section>
+
+        <section class="space-y-3">
+          <h2 class="text-base font-bold text-stone-900 border-b border-stone-200 pb-1 font-['M_PLUS_Rounded_1c']">
+            6. お問い合わせ
+          </h2>
+          <p class="text-sm">
+            本ポリシーまたは本サービスに関するご質問・不具合報告・データ削除等のご要望は、公式リポジトリ（GitHub Issue / Discussions）よりご連絡ください。
+          </p>
+        </section>
+
+        <section class="space-y-3">
+          <h2 class="text-base font-bold text-stone-900 border-b border-stone-200 pb-1 font-['M_PLUS_Rounded_1c']">
+            7. プライバシーポリシーの改定
+          </h2>
+          <p class="text-sm">
+            本ポリシーは、法令の変更やサービス内容の改善等に伴い、事前の予告なく改定されることがあります。改定後のポリシーは本サイト上に掲載された時点で効力を生じます。
+          </p>
+        </section>
+      </div>
+    </div>,
+    {
+      title: 'プライバシーポリシー',
+      description: 'noton2 のプライバシーポリシーです。利用者のプライバシー保護と情報の取り扱いについて説明しています。',
     }
   )
 })
