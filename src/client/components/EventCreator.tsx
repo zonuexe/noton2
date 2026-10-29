@@ -854,9 +854,6 @@ export const EventCreator = defineVaporComponent({
                       <label class="block text-xs font-bold text-stone-700">
                         日ごとの時間帯設定（全 {selectedDates.value.length} 日・計 {slots.value.length} コマ）
                       </label>
-                      <p class="text-[11px] text-stone-500 mt-0.5">
-                        初日は午後から、2日目は全日、最終日は午前のみなど、日ごとに開始・終了時刻を変えられます。
-                      </p>
                     </div>
                     {slots.value.length > 0 ? (
                       <button
