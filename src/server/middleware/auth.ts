@@ -22,6 +22,9 @@ export const SESSION_COOKIE_NAME = 'noton2_session'
 export const DEFAULT_SESSION_SECRET = 'noton2-default-development-secret-key-32chars'
 
 export function getSessionSecret(env: AuthBindings): string {
+  if (import.meta.env.PROD && !env.SESSION_SECRET) {
+    throw new Error('FATAL: SESSION_SECRET must be configured in production environment.')
+  }
   return env.SESSION_SECRET || DEFAULT_SESSION_SECRET
 }
 

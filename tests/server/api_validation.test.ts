@@ -120,6 +120,62 @@ describe('server/api - 入力バリデーションと認可チェック', () => 
       const data = await res.json()
       expect(data.error).toBe('候補日時を1つ以上選択してください')
     })
+
+    it('イベント名が100文字を超える場合、400 エラーを返すこと', async () => {
+      const mockUser: User = {
+        id: 'u1',
+        githubId: 12345,
+        username: 'testuser',
+        createdAt: '',
+        updatedAt: '',
+      }
+      const app = createApp(mockUser)
+
+      const res = await app.request('/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: 'a'.repeat(101),
+          organizerName: '主催者',
+          slots: [{ slotDate: '2026-10-29', startTime: '10:00', endTime: '11:00' }],
+        }),
+      })
+
+      expect(res.status).toBe(400)
+      const data = await res.json()
+      expect(data.error).toBe('イベント名は100文字以内で入力してください')
+    })
+
+    it('候補スロットが500件を超える場合、400 エラーを返すこと', async () => {
+      const mockUser: User = {
+        id: 'u1',
+        githubId: 12345,
+        username: 'testuser',
+        createdAt: '',
+        updatedAt: '',
+      }
+      const app = createApp(mockUser)
+
+      const slots = Array.from({ length: 501 }, (_, i) => ({
+        slotDate: '2026-10-29',
+        startTime: '10:00',
+        endTime: '11:00',
+      }))
+
+      const res = await app.request('/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: '大量スロットイベント',
+          organizerName: '主催者',
+          slots,
+        }),
+      })
+
+      expect(res.status).toBe(400)
+      const data = await res.json()
+      expect(data.error).toBe('候補日時は最大500件まで指定できます')
+    })
   })
 
   describe('POST /api/events/:id/responses - 回答登録時の入力検証', () => {
@@ -138,6 +194,41 @@ describe('server/api - 入力バリデーションと認可チェック', () => 
       expect(res.status).toBe(400)
       const data = await res.json()
       expect(data.error).toBe('お名前（ニックネーム）を入力してください')
+    })
+
+    it('名前が50文字を超える場合、400 エラーを返すこと', async () => {
+      const app = createApp(null)
+
+      const res = await app.request('/api/events/test-event-id/responses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'あ'.repeat(51),
+          answers: [{ slotId: 's1', status: 'available' }],
+        }),
+      })
+
+      expect(res.status).toBe(400)
+      const data = await res.json()
+      expect(data.error).toBe('お名前は50文字以内で入力してください')
+    })
+
+    it('コメントが500文字を超える場合、400 エラーを返すこと', async () => {
+      const app = createApp(null)
+
+      const res = await app.request('/api/events/test-event-id/responses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: '正常な名前',
+          comment: 'あ'.repeat(501),
+          answers: [{ slotId: 's1', status: 'available' }],
+        }),
+      })
+
+      expect(res.status).toBe(400)
+      const data = await res.json()
+      expect(data.error).toBe('コメントは500文字以内で入力してください')
     })
   })
 

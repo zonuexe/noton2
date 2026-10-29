@@ -16,15 +16,11 @@ test.describe('スマートフォン（モバイルビューポート）のE2E�
     await page.getByPlaceholder(/プロジェクト定例MTG/).fill('モバイル表示確認イベント')
     await page.getByPlaceholder(/山田太郎、幹事/).fill('モバイル主催者')
 
-    // 3. カレンダーから日付を選択
-    const dateButtons = page.locator('button:has-text("10"), button:has-text("15"), button:has-text("20")')
-    await dateButtons.first().click()
-
-    // 4. プリセット追加
+    // 3. プリセットで候補枠を追加
     await page.getByRole('button', { name: /日中 \(10:00〜19:00\)/ }).click()
 
-    // 5. 作成ボタンをクリック
-    const submitButton = page.getByRole('button', { name: /日程調整表を作成する/ })
+    // 4. 作成ボタンをクリック
+    const submitButton = page.getByRole('button', { name: /日程調整表を作成する（全 9 コマ）/ })
     await submitButton.click()
 
     // 6. 作成完了画面からイベント詳細へ

@@ -20,10 +20,28 @@ export const auth = new Hono<{
 const OAUTH_STATE_COOKIE = 'noton2_oauth_state'
 const RETURN_TO_COOKIE = 'noton2_return_to'
 
+/**
+ * オープンリダイレクト攻撃を防ぐため、安全な同一オリジンの相対パスのみを許可する
+ */
+export function sanitizeReturnTo(url?: string | null): string {
+  if (!url || typeof url !== 'string') return '/'
+  const trimmed = url.trim()
+  // / から始まり、// や /\ やコロン（例: javascript:, http:）を含まない相対パスのみ許可
+  if (
+    trimmed.startsWith('/') &&
+    !trimmed.startsWith('//') &&
+    !trimmed.startsWith('/\\') &&
+    !trimmed.includes(':')
+  ) {
+    return trimmed
+  }
+  return '/'
+}
+
 // 1. GitHub 認可画面へのリダイレクト
 auth.get('/github', (c) => {
   const clientId = c.env.GITHUB_CLIENT_ID
-  const returnTo = c.req.query('returnTo') || '/'
+  const returnTo = sanitizeReturnTo(c.req.query('returnTo'))
 
   // GitHub OAuth App が未設定の場合の案内
   if (!clientId) {
@@ -105,7 +123,7 @@ auth.get('/github/callback', async (c) => {
   const code = c.req.query('code')
   const state = c.req.query('state')
   const savedState = getCookie(c, OAUTH_STATE_COOKIE)
-  const returnTo = getCookie(c, RETURN_TO_COOKIE) || '/'
+  const returnTo = sanitizeReturnTo(getCookie(c, RETURN_TO_COOKIE))
 
   // 状態検証
   if (!code || !state || state !== savedState) {
@@ -199,7 +217,7 @@ auth.get('/dev-login', async (c) => {
     return c.text('Not found', 404)
   }
 
-  const returnTo = c.req.query('returnTo') || '/'
+  const returnTo = sanitizeReturnTo(c.req.query('returnTo'))
   const user = await upsertUser(c.env.DB, {
     githubId: 99999999,
     username: 'dev-user',

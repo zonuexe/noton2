@@ -505,6 +505,16 @@ export async function submitResponse(
   eventId: string,
   input: SubmitResponseInput
 ): Promise<{ participantId: string; editToken: string }> {
+  // イベントの存在確認
+  const eventExists = await db
+    .prepare(`SELECT id FROM events WHERE id = ?`)
+    .bind(eventId)
+    .first()
+
+  if (!eventExists) {
+    throw new Error('指定されたイベントが見つかりません')
+  }
+
   let participantId = input.participantId
   let editToken = input.editToken
 
@@ -544,18 +554,31 @@ export async function submitResponse(
       .run()
   }
 
-  // 各独立スロットへの回答を登録
+  // 各独立スロットへの回答を登録 (重複 slotId は最後のステータスに集約)
   if (input.answers && input.answers.length > 0) {
-    const answerStatements = input.answers.map((ans) => {
+    const uniqueAnswers = new Map<string, string>()
+    for (const ans of input.answers) {
+      if (ans.slotId && ans.status) {
+        uniqueAnswers.set(ans.slotId, ans.status)
+      }
+    }
+
+    const answerStatements: D1PreparedStatement[] = []
+    for (const [slotId, status] of uniqueAnswers.entries()) {
       const answerId = generateShortId(12)
-      return db
-        .prepare(
-          `INSERT INTO slot_answers (id, participant_id, slot_id, status)
-           VALUES (?, ?, ?, ?)`
-        )
-        .bind(answerId, participantId, ans.slotId, ans.status)
-    })
-    await db.batch(answerStatements)
+      answerStatements.push(
+        db
+          .prepare(
+            `INSERT INTO slot_answers (id, participant_id, slot_id, status)
+             VALUES (?, ?, ?, ?)`
+          )
+          .bind(answerId, participantId, slotId, status)
+      )
+    }
+
+    if (answerStatements.length > 0) {
+      await db.batch(answerStatements)
+    }
   }
 
   return { participantId, editToken }

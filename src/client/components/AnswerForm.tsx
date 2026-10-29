@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import { defineVaporComponent, ref, computed, onMounted } from 'vue'
+import { defineVaporComponent, ref, computed, onMounted, onUnmounted } from 'vue'
 import type { AnswerStatus, EventDetail, SubmitResponseInput } from '@/shared/types'
 import { TIMELINE_HOURS, formatDateLabel, getSlotsForHour } from '@/shared/time'
 import {
@@ -88,11 +88,17 @@ export const AnswerForm = defineVaporComponent({
       answers.value = initial
 
       // グローバル mouseup でドラッグ終了
-      const stopDrag = () => {
-        isDragging.value = false
-      }
       window.addEventListener('mouseup', stopDrag)
       window.addEventListener('touchend', stopDrag)
+    })
+
+    const stopDrag = () => {
+      isDragging.value = false
+    }
+
+    onUnmounted(() => {
+      window.removeEventListener('mouseup', stopDrag)
+      window.removeEventListener('touchend', stopDrag)
     })
 
     // 全スロットを一括設定
@@ -169,6 +175,8 @@ export const AnswerForm = defineVaporComponent({
           throw new Error(data.error || '送信に失敗しました')
         }
 
+        const isNew = !participantId.value
+
         // localStorage に保存
         participantId.value = data.participantId
         editToken.value = data.editToken
@@ -181,7 +189,7 @@ export const AnswerForm = defineVaporComponent({
           })
         )
 
-        successMessage.value = participantId.value ? '回答を更新しました！' : '回答を登録しました！'
+        successMessage.value = isNew ? '回答を登録しました！' : '回答を更新しました！'
         setTimeout(() => (successMessage.value = ''), 4000)
 
         props.onSuccess()

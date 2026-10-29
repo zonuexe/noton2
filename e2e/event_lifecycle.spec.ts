@@ -19,19 +19,13 @@ test.describe('イベントライフサイクルと回答登録のE2Eテスト',
     const organizerInput = page.getByPlaceholder(/山田太郎、幹事/)
     await organizerInput.fill('主催者Dev')
 
-    // 3. カレンダーで日付を選択 (カレンダー内の日付ボタンを1つクリック)
-    // 今日の日付もしくは現在月の日付セルを取得してクリック
-    const dateButtons = page.locator('button:has-text("15"), button:has-text("20"), button:has-text("25")')
-    const targetDateButton = dateButtons.first()
-    await targetDateButton.click()
-
-    // 4. プリセットボタンで候補枠を追加
+    // 3. 初期状態で今日の日付が選択されているため、プリセットボタンで候補枠を一括追加
     const presetButton = page.getByRole('button', { name: /日中 \(10:00〜19:00\)/ })
     await expect(presetButton).toBeVisible()
     await presetButton.click()
 
-    // 5. 作成ボタンをクリック
-    const submitCreateButton = page.getByRole('button', { name: /日程調整表を作成する/ })
+    // 4. 作成ボタン（全9コマ追加されていること）をクリック
+    const submitCreateButton = page.getByRole('button', { name: /日程調整表を作成する（全 9 コマ）/ })
     await expect(submitCreateButton).toBeEnabled()
     await submitCreateButton.click()
 

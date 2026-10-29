@@ -42,11 +42,23 @@ api.post('/events', async (c) => {
     if (!body.title || !body.title.trim()) {
       return c.json({ error: 'イベント名を入力してください' }, 400)
     }
+    if (body.title.trim().length > 100) {
+      return c.json({ error: 'イベント名は100文字以内で入力してください' }, 400)
+    }
     if (!body.organizerName || !body.organizerName.trim()) {
       return c.json({ error: '主催者名を入力してください' }, 400)
     }
+    if (body.organizerName.trim().length > 50) {
+      return c.json({ error: '主催者名は50文字以内で入力してください' }, 400)
+    }
+    if (body.description && body.description.length > 2000) {
+      return c.json({ error: '補足説明は2000文字以内で入力してください' }, 400)
+    }
     if (!body.slots || body.slots.length === 0) {
       return c.json({ error: '候補日時を1つ以上選択してください' }, 400)
+    }
+    if (body.slots.length > 500) {
+      return c.json({ error: '候補日時は最大500件まで指定できます' }, 400)
     }
 
     const { id, adminToken } = await createEvent(c.env.DB, body, user.id)
@@ -175,11 +187,23 @@ api.post('/events/:id/responses', async (c) => {
     if (!body.name || !body.name.trim()) {
       return c.json({ error: 'お名前（ニックネーム）を入力してください' }, 400)
     }
+    if (body.name.trim().length > 50) {
+      return c.json({ error: 'お名前は50文字以内で入力してください' }, 400)
+    }
+    if (body.comment && body.comment.length > 500) {
+      return c.json({ error: 'コメントは500文字以内で入力してください' }, 400)
+    }
 
     const result = await submitResponse(c.env.DB, eventId, body)
     return c.json(result)
   } catch (err: any) {
     console.error('Submit response error:', err)
+    if (err.message === '指定されたイベントが見つかりません') {
+      return c.json({ error: err.message }, 404)
+    }
+    if (err.message === '編集権限がありません') {
+      return c.json({ error: err.message }, 403)
+    }
     return c.json({ error: err.message || '回答の送信に失敗しました' }, 500)
   }
 })
