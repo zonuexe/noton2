@@ -6,7 +6,6 @@ import { defineVaporComponent, ref } from 'vue'
 import type { EventDetail } from '@/shared/types'
 import {
   TIME_PRESETS,
-  DATE_TITLE_SUGGESTIONS,
   splitIntoSlots,
   formatDateLabel,
   getTodayISO,
@@ -483,25 +482,6 @@ ${shareUrl}
                   class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-xs outline-none"
                 />
               </div>
-            </div>
-
-            {/* 日程名候補サジェスト */}
-            <div class="flex items-center gap-1 flex-wrap text-[10px]">
-              <span class="text-stone-400 font-bold">日程名候補:</span>
-              {DATE_TITLE_SUGGESTIONS.map((sug) => (
-                <button
-                  key={sug}
-                  type="button"
-                  onClick={() => (newDateTitle.value = sug)}
-                  class={`px-1.5 py-0.5 rounded transition cursor-pointer border ${
-                    newDateTitle.value === sug
-                      ? 'bg-amber-500 text-white border-amber-600 font-bold'
-                      : 'bg-stone-50 text-stone-600 border-stone-200 hover:bg-amber-50'
-                  }`}
-                >
-                  {sug}
-                </button>
-              ))}
             </div>
 
             {/* プリセット */}

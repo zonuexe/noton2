@@ -24,10 +24,10 @@ test.describe('イベントライフサイクルと回答登録のE2Eテスト',
     await expect(presetButton).toBeVisible()
     await presetButton.click()
 
-    // 3-1. 日程名候補「前夜祭」ボタンをクリックして日程名を設定
-    const zenyaButton = page.getByRole('button', { name: '前夜祭' })
-    await expect(zenyaButton).toBeVisible()
-    await zenyaButton.click()
+    // 3-1. 日程名入力欄に「前夜祭」を入力
+    const dateTitleInput = page.getByPlaceholder(/例: DAY 0、前夜祭/)
+    await expect(dateTitleInput).toBeVisible()
+    await dateTitleInput.fill('前夜祭')
 
     // 4. 作成ボタン（全9コマ追加されていること）をクリック
     const submitCreateButton = page.getByRole('button', { name: /日程調整表を作成する（全 9 コマ）/ })

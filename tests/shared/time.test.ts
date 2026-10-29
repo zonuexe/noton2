@@ -5,7 +5,6 @@
 import { describe, it, expect } from 'vitest'
 import {
   TIME_PRESETS,
-  DATE_TITLE_SUGGESTIONS,
   splitIntoSlots,
   replaceSlotsForDate,
   getSlotsForHour,
@@ -240,12 +239,6 @@ describe('shared/time - 日時・スロット計算ロジック', () => {
         start: '08:00',
         end: '22:00',
       })
-    })
-
-    it('DATE_TITLE_SUGGESTIONS: DAY 0 や前夜祭、会場撤収などのサジェスト候補が含まれること', () => {
-      expect(DATE_TITLE_SUGGESTIONS).toContain('DAY 0')
-      expect(DATE_TITLE_SUGGESTIONS).toContain('前夜祭')
-      expect(DATE_TITLE_SUGGESTIONS).toContain('会場撤収')
     })
 
     it('replaceSlotsForDate: 複数日イベントで日ごとに異なる時間帯（例: 初日15-20時, 2日目08-20時, 3日目08-13時）および日程名（DAY 0, 前夜祭, 会場撤収）を個別に設定できること', () => {

@@ -6,7 +6,6 @@ import { defineVaporComponent, ref, computed } from 'vue'
 import type { CreateEventInput, User } from '@/shared/types'
 import {
   TIME_PRESETS,
-  DATE_TITLE_SUGGESTIONS,
   splitIntoSlots,
   replaceSlotsForDate,
   formatDateLabel,
@@ -973,39 +972,17 @@ export const EventCreator = defineVaporComponent({
                               </div>
                             </div>
 
-                            {/* 日程名（名前付け）入力 & サジェスト */}
-                            <div class="flex flex-col sm:flex-row sm:items-center gap-2 pt-1 border-t border-rose-200/50">
-                              <div class="flex items-center gap-1.5 shrink-0">
-                                <span class="text-[11px] font-bold text-stone-600">日程名:</span>
-                                <input
-                                  type="text"
-                                  placeholder="例: DAY 0、前夜祭、会場撤収"
-                                  aria-label={`${formatDateLabel(dateStr)}の日程名`}
-                                  value={range.title || ''}
-                                  onInput={(e: any) => updateDateTitle(dateStr, e.target.value)}
-                                  class="w-44 bg-white border border-stone-300 focus:border-rose-400 rounded-lg px-2.5 py-1 text-xs text-stone-800 outline-none font-medium"
-                                />
-                              </div>
-                              <div class="flex items-center gap-1 flex-wrap">
-                                <span class="text-[10px] text-stone-400 font-bold">候補:</span>
-                                {DATE_TITLE_SUGGESTIONS.map((sug) => {
-                                  const isSelected = range.title === sug
-                                  return (
-                                    <button
-                                      key={`${dateStr}-${sug}`}
-                                      type="button"
-                                      onClick={() => updateDateTitle(dateStr, sug)}
-                                      class={`px-1.5 py-0.5 rounded text-[10px] font-bold transition cursor-pointer border ${
-                                        isSelected
-                                          ? 'bg-rose-500 text-white border-rose-500 shadow-2xs'
-                                          : 'bg-white text-stone-600 border-stone-200 hover:border-rose-300 hover:text-rose-700'
-                                      }`}
-                                    >
-                                      {sug}
-                                    </button>
-                                  )
-                                })}
-                              </div>
+                            {/* 日程名（名前付け）入力 */}
+                            <div class="flex items-center gap-1.5 pt-1 border-t border-rose-200/50">
+                              <span class="text-[11px] font-bold text-stone-600 shrink-0">日程名:</span>
+                              <input
+                                type="text"
+                                placeholder="例: DAY 0、前夜祭、会場撤収（任意）"
+                                aria-label={`${formatDateLabel(dateStr)}の日程名`}
+                                value={range.title || ''}
+                                onInput={(e: any) => updateDateTitle(dateStr, e.target.value)}
+                                class="w-full max-w-xs bg-white border border-stone-300 focus:border-rose-400 rounded-lg px-2.5 py-1 text-xs text-stone-800 outline-none font-medium"
+                              />
                             </div>
 
                             {/* 日ごとのクイックプリセットボタン */}

@@ -144,45 +144,17 @@ export const MatrixTable = defineVaporComponent({
           </h2>
         </div>
 
-        {/* サブ説明文 ＆ 凡例 */}
-        <div class="px-4 py-3 bg-white border-b border-stone-100 flex flex-wrap items-center justify-between gap-3 text-xs sm:text-[13px] text-stone-700">
-          <div>
-            主催者が設定した日付と時間です。参加者の方は
-            <button
-              type="button"
-              onClick={scrollToAnswerForm}
-              class="text-blue-600 hover:text-blue-800 underline font-normal cursor-pointer mx-0.5"
-            >
-              あなたの予定を追加する
-            </button>
-            から予定を追加してください。
-          </div>
-
-          {/* 凡例バッジ */}
-          <div class="flex items-center gap-3 text-xs flex-wrap">
-            <span class="flex items-center gap-1 font-medium text-stone-700">
-              <span class="w-3.5 h-3.5 rounded-xs bg-[#58b4ff] text-white text-[10px] flex items-center justify-center font-bold">
-                •
-              </span>
-              ◯（参加可能）
-            </span>
-            <span class="flex items-center gap-1 font-medium text-stone-700">
-              <span class="w-3.5 h-3.5 rounded-xs bg-[#f5a623] text-white text-[8px] flex items-center justify-center font-bold">
-                ▲
-              </span>
-              △（未定）
-            </span>
-            <span class="flex items-center gap-1 font-medium text-stone-700">
-              <span class="w-3.5 h-3.5 rounded-xs bg-[#d4d4d4] text-stone-600 text-[10px] flex items-center justify-center font-bold">
-                ×
-              </span>
-              ✕（不可）
-            </span>
-            <span class="flex items-center gap-1 font-medium text-stone-500">
-              <span class="w-3.5 h-3.5 rounded-xs bg-[#dedede] border border-stone-300"></span>
-              枠外
-            </span>
-          </div>
+        {/* サブ説明文 */}
+        <div class="px-4 py-2.5 bg-white border-b border-stone-100 text-xs sm:text-[13px] text-stone-700">
+          主催者が設定した日付と時間です。参加者の方は
+          <button
+            type="button"
+            onClick={scrollToAnswerForm}
+            class="text-blue-600 hover:text-blue-800 underline font-normal cursor-pointer mx-0.5"
+          >
+            あなたの予定を追加する
+          </button>
+          から予定を追加してください。
         </div>
 
         <div class="p-3 sm:p-4 md:p-5">
