@@ -19,6 +19,7 @@ import {
   confirmSlot,
   deleteParticipant,
   deleteEvent,
+  getEventsByCreatorUserId,
 } from '@/server/db/client'
 
 /**
@@ -352,5 +353,98 @@ describe('server/db/client - 実 SQLite (schema.sql) を用いた統合テスト
     const deletedEventOk = await deleteEvent(db, eventId, adminToken)
     expect(deletedEventOk).toBe(true)
     expect(await getEventById(db, eventId)).toBeNull()
+  })
+
+  it('getEventsByCreatorUserId: 主催者が作成したイベント一覧および確定ステータス・集計が正しく取得できること', async () => {
+    const userA = await upsertUser(db, {
+      githubId: 1001,
+      username: 'alice',
+      displayName: 'Alice Dev',
+      avatarUrl: 'https://avatars.githubusercontent.com/u/1001',
+    })
+    const userB = await upsertUser(db, {
+      githubId: 1002,
+      username: 'bob',
+      displayName: 'Bob Dev',
+      avatarUrl: 'https://avatars.githubusercontent.com/u/1002',
+    })
+
+    // 最初は 0 件
+    const initialEvents = await getEventsByCreatorUserId(db, userA.id)
+    expect(initialEvents).toHaveLength(0)
+
+    // Alice がイベントを2つ作成
+    const ev1 = await createEvent(
+      db,
+      {
+        title: 'Alice Event 1 (調整中)',
+        organizerName: 'Alice',
+        slots: [
+          { slotDate: '2026-11-01', startTime: '10:00', endTime: '11:00', dateTitle: 'キックオフ' },
+          { slotDate: '2026-11-01', startTime: '11:00', endTime: '12:00', dateTitle: 'キックオフ' },
+        ],
+      },
+      userA.id
+    )
+
+    const ev2 = await createEvent(
+      db,
+      {
+        title: 'Alice Event 2 (確定済み)',
+        organizerName: 'Alice',
+        slots: [
+          { slotDate: '2026-11-05', startTime: '18:00', endTime: '19:00', dateTitle: '前夜祭' },
+        ],
+      },
+      userA.id
+    )
+
+    // Bob がイベントを1つ作成
+    await createEvent(
+      db,
+      {
+        title: 'Bob Event',
+        organizerName: 'Bob',
+        slots: [{ slotDate: '2026-11-06', startTime: '12:00', endTime: '13:00' }],
+      },
+      userB.id
+    )
+
+    // ev2 を日程確定
+    const ev2Detail = await getEventById(db, ev2.id)
+    const slotToConfirm = ev2Detail!.slots[0]
+    await confirmSlot(db, ev2.id, ev2.adminToken, slotToConfirm.id)
+
+    // ev1 に回答者を1名追加
+    const ev1Detail = await getEventById(db, ev1.id)
+    const ev1SlotId = ev1Detail!.slots[0].id
+    await submitResponse(db, ev1.id, {
+      name: 'Charlie',
+      answers: [{ slotId: ev1SlotId, status: 'available' }],
+    })
+
+    const aliceEvents = await getEventsByCreatorUserId(db, userA.id)
+    expect(aliceEvents).toHaveLength(2)
+
+    // 作成日時の降順
+    expect(aliceEvents[0].id).toBe(ev2.id)
+    expect(aliceEvents[0].title).toBe('Alice Event 2 (確定済み)')
+    expect(aliceEvents[0].confirmedSlotId).toBe(slotToConfirm.id)
+    expect(aliceEvents[0].confirmedSlotDate).toBe('2026-11-05')
+    expect(aliceEvents[0].confirmedStartTime).toBe('18:00')
+    expect(aliceEvents[0].confirmedEndTime).toBe('19:00')
+    expect(aliceEvents[0].confirmedDateTitle).toBe('前夜祭')
+    expect(aliceEvents[0].slotCount).toBe(1)
+    expect(aliceEvents[0].participantCount).toBe(0)
+
+    expect(aliceEvents[1].id).toBe(ev1.id)
+    expect(aliceEvents[1].title).toBe('Alice Event 1 (調整中)')
+    expect(aliceEvents[1].confirmedSlotId).toBeNull()
+    expect(aliceEvents[1].slotCount).toBe(2)
+
+    // Bob のイベント一覧には Bob のものだけが含まれること
+    const bobEvents = await getEventsByCreatorUserId(db, userB.id)
+    expect(bobEvents).toHaveLength(1)
+    expect(bobEvents[0].title).toBe('Bob Event')
   })
 })

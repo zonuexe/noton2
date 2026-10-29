@@ -13,8 +13,9 @@ test.describe('イベントライフサイクルと回答登録のE2Eテスト',
     await expect(page).toHaveURL(/\/new/)
 
     // 2. 基本情報の入力
+    const uniqueTitle = `E2E自動テスト定例MTG-${Date.now()}`
     const titleInput = page.getByPlaceholder(/プロジェクト定例MTG/)
-    await titleInput.fill('E2E自動テスト定例MTG')
+    await titleInput.fill(uniqueTitle)
 
     const organizerInput = page.getByPlaceholder(/山田太郎、幹事/)
     await organizerInput.fill('主催者Dev')
@@ -45,7 +46,7 @@ test.describe('イベントライフサイクルと回答登録のE2Eテスト',
 
     // 7. 生成されたイベント詳細画面 (/events/:id) へ遷移したことを確認
     await expect(page).toHaveURL(/\/events\/[a-z0-9]+/)
-    await expect(page.getByRole('heading', { name: 'E2E自動テスト定例MTG' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: uniqueTitle })).toBeVisible()
     await expect(page.getByText('主催者Dev')).toBeVisible()
 
     // 「みんなの予定」集計表の初期表示を確認
@@ -112,5 +113,18 @@ test.describe('イベントライフサイクルと回答登録のE2Eテスト',
     // 確定バナーが表示されることを確認
     await expect(page.getByText('開催日時が決定しました！')).toBeVisible()
     await expect(page.getByText('🎉 開催決定')).toBeVisible()
+
+    // 13. 右上の自分のアカウント名をクリックしてマイページへ遷移し、作成したイベント一覧を確認
+    const mypageLink = page.locator('header a[href="/mypage"]')
+    await expect(mypageLink).toBeVisible()
+    await mypageLink.click()
+
+    await expect(page).toHaveURL(/\/mypage/)
+    await expect(page.getByRole('heading', { name: 'あなたが作成したイベント' })).toBeVisible()
+    await expect(page.getByRole('link', { name: uniqueTitle })).toBeVisible()
+    await expect(page.getByText('【前夜祭】').first()).toBeVisible()
+    await expect(page.getByText('🎉 開催決定').first()).toBeVisible()
+    await expect(page.getByText('候補枠: 9').first()).toBeVisible()
+    await expect(page.getByText('回答者: 1 人').first()).toBeVisible()
   })
 })

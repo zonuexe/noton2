@@ -102,11 +102,9 @@ export const renderer = jsxRenderer(({ children, title, description, ogImage, og
                 {user ? (
                   <div class="flex items-center gap-2 pl-2 border-l border-rose-200">
                     <a
-                      href={safeProfileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="flex items-center gap-1.5 group"
-                      title={`GitHub: @${user.username}`}
+                      href="/mypage"
+                      class="flex items-center gap-1.5 group hover:opacity-90"
+                      title="マイページ（作成したイベント一覧）"
                     >
                       {safeAvatarUrl ? (
                         <img

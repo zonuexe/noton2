@@ -5,6 +5,8 @@
 import { describe, it, expect } from 'vitest'
 import { Hono } from 'hono'
 import { api } from '@/server/routes/api'
+import { pages } from '@/server/routes/pages'
+import { renderer } from '@/server/renderer'
 import type { User } from '@/shared/types'
 
 describe('server/api - 入力バリデーションと認可チェック', () => {
@@ -404,6 +406,85 @@ describe('server/api - 入力バリデーションと認可チェック', () => 
       expect(res.status).toBe(400)
       const data = (await res.json()) as any
       expect(data.error).toBe('日程の名称は50文字以内で入力してください')
+    })
+  })
+
+  describe('GET /mypage - マイページ表示と認可', () => {
+    const createPageTestApp = (mockUser: User | null = null, mockResults: any[] = []) => {
+      const app = new Hono<{
+        Bindings: { DB: any }
+        Variables: { user: User | null }
+      }>()
+
+      app.use('*', async (c, next) => {
+        c.set('user', mockUser)
+        c.env = {
+          DB: {
+            prepare: () => ({
+              bind: () => ({
+                all: async () => ({ results: mockResults, success: true }),
+              }),
+            }),
+          } as any,
+        }
+        await next()
+      })
+      app.use('*', renderer)
+      app.route('/', pages)
+      return app
+    }
+
+    it('未ログイン時は /auth/github?returnTo=/mypage へリダイレクトされること', async () => {
+      const app = createPageTestApp(null)
+      const res = await app.request('/mypage')
+
+      expect(res.status).toBe(302)
+      expect(res.headers.get('location')).toBe('/auth/github?returnTo=/mypage')
+    })
+
+    it('ログイン済み時は 200 OK でマイページが表示され、ユーザー名とイベント一覧が含まれること', async () => {
+      const mockUser: User = {
+        id: 'gh_9999',
+        githubId: 9999,
+        username: 'mypage_tester',
+        displayName: 'MyPage Test User',
+        avatarUrl: 'https://avatars.githubusercontent.com/u/9999',
+        profileUrl: 'https://github.com/mypage_tester',
+        createdAt: '2026-10-29T10:00:00Z',
+        updatedAt: '2026-10-29T10:00:00Z',
+      }
+      const mockEvents = [
+        {
+          id: 'test-ev-1',
+          title: 'テスト作成イベント',
+          description: 'テスト説明文',
+          organizer_name: 'MyPage Test User',
+          confirmed_slot_id: 'slot-1',
+          confirmed_slot_date: '2026-11-10',
+          confirmed_start_time: '19:00',
+          confirmed_end_time: '21:00',
+          confirmed_date_title: '本番',
+          created_at: '2026-10-29 10:00:00',
+          updated_at: '2026-10-29 10:00:00',
+          slot_count: 3,
+          participant_count: 5,
+        },
+      ]
+
+      const app = createPageTestApp(mockUser, mockEvents)
+      const res = await app.request('/mypage')
+
+      expect(res.status).toBe(200)
+      const html = await res.text()
+      expect(html).toContain('MyPage Test User')
+      expect(html).toContain('@mypage_tester')
+      expect(html).toContain('テスト作成イベント')
+      expect(html).toContain('開催決定')
+      expect(html).toContain('【本番】')
+      expect(html).toContain('19:00〜21:00')
+      expect(html).toContain('/events/test-ev-1')
+      // ヘッダーのリンク先が /mypage であること
+      expect(html).toContain('href="/mypage"')
     })
   })
 })

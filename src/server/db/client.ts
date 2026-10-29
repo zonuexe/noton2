@@ -10,6 +10,7 @@ import type {
   SubmitResponseInput,
   TimeSlot,
   User,
+  UserCreatedEventSummary,
 } from '@/shared/types'
 import { compareSlots } from '@/shared/time'
 
@@ -773,3 +774,65 @@ export async function deleteParticipant(
   }
   return false
 }
+
+export async function getEventsByCreatorUserId(
+  db: D1Database,
+  userId: string
+): Promise<UserCreatedEventSummary[]> {
+  interface EventRow {
+    id: string
+    title: string
+    description: string | null
+    organizer_name: string
+    confirmed_slot_id: string | null
+    confirmed_slot_date: string | null
+    confirmed_start_time: string | null
+    confirmed_end_time: string | null
+    confirmed_date_title: string | null
+    created_at: string
+    updated_at: string
+    slot_count: number
+    participant_count: number
+  }
+
+  const { results } = await db
+    .prepare(
+      `SELECT
+        e.id,
+        e.title,
+        e.description,
+        e.organizer_name,
+        e.confirmed_slot_id,
+        ts.slot_date as confirmed_slot_date,
+        ts.start_time as confirmed_start_time,
+        ts.end_time as confirmed_end_time,
+        ts.date_title as confirmed_date_title,
+        e.created_at,
+        e.updated_at,
+        (SELECT COUNT(*) FROM time_slots WHERE event_id = e.id) as slot_count,
+        (SELECT COUNT(*) FROM participants WHERE event_id = e.id) as participant_count
+      FROM events e
+      LEFT JOIN time_slots ts ON e.confirmed_slot_id = ts.id
+      WHERE e.creator_user_id = ?
+      ORDER BY e.created_at DESC, e.rowid DESC`
+    )
+    .bind(userId)
+    .all<EventRow>()
+
+  return (results || []).map((row) => ({
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    organizerName: row.organizer_name,
+    confirmedSlotId: row.confirmed_slot_id,
+    confirmedSlotDate: row.confirmed_slot_date,
+    confirmedStartTime: row.confirmed_start_time,
+    confirmedEndTime: row.confirmed_end_time,
+    confirmedDateTitle: row.confirmed_date_title,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    slotCount: Number(row.slot_count || 0),
+    participantCount: Number(row.participant_count || 0),
+  }))
+}
+

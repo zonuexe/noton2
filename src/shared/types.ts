@@ -99,3 +99,19 @@ export interface ConfirmSlotInput {
   adminToken?: string
   slotId: string | null
 }
+
+export interface UserCreatedEventSummary {
+  id: string
+  title: string
+  description: string | null
+  organizerName: string
+  confirmedSlotId: string | null
+  confirmedSlotDate?: string | null
+  confirmedStartTime?: string | null
+  confirmedEndTime?: string | null
+  confirmedDateTitle?: string | null
+  createdAt: string
+  updatedAt: string
+  slotCount: number
+  participantCount: number
+}
