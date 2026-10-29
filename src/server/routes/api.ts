@@ -16,7 +16,7 @@ import {
   updateEventDetails,
 } from '../db/client'
 import type { CreateEventInput, SubmitResponseInput } from '@/shared/types'
-import { isValidSlotDate, isValidTimeHM } from '@/shared/time'
+import { isValidSlotDate, isValidSlotTimeRange, isValidTimeHM } from '@/shared/time'
 import type { AuthBindings, AuthVariables } from '../middleware/auth'
 
 export const api = new Hono<{
@@ -55,6 +55,21 @@ api.post('/events', async (c) => {
     if (body.description && body.description.length > 2000) {
       return c.json({ error: '補足説明は2000文字以内で入力してください' }, 400)
     }
+    if (
+      body.durationMinutes !== undefined &&
+      (typeof body.durationMinutes !== 'number' ||
+        body.durationMinutes < 15 ||
+        body.durationMinutes > 1440)
+    ) {
+      return c.json({ error: '所要時間は15分〜1440分の間で指定してください' }, 400)
+    }
+    if (
+      body.slotIntervalMinutes !== undefined &&
+      body.slotIntervalMinutes !== 30 &&
+      body.slotIntervalMinutes !== 60
+    ) {
+      return c.json({ error: '枠の刻み幅は30分または60分を指定してください' }, 400)
+    }
     if (!body.slots || body.slots.length === 0) {
       return c.json({ error: '候補日時を1つ以上選択してください' }, 400)
     }
@@ -68,6 +83,9 @@ api.post('/events', async (c) => {
       }
       if (!isValidTimeHM(s.startTime) || !isValidTimeHM(s.endTime)) {
         return c.json({ error: '候補日時の時刻形式が正しくありません (HH:mm)' }, 400)
+      }
+      if (!isValidSlotTimeRange(s.startTime, s.endTime)) {
+        return c.json({ error: '終了時刻は開始時刻より後に設定してください' }, 400)
       }
     }
 
@@ -123,6 +141,9 @@ api.post('/events/:id/slots', async (c) => {
       if (!isValidTimeHM(s.startTime) || !isValidTimeHM(s.endTime)) {
         return c.json({ error: 'スロットの時刻形式が不正です (HH:mm)' }, 400)
       }
+      if (!isValidSlotTimeRange(s.startTime, s.endTime)) {
+        return c.json({ error: '終了時刻は開始時刻より後に設定してください' }, 400)
+      }
     }
 
     const result = await addSlotsToEvent(
@@ -139,7 +160,10 @@ api.post('/events/:id/slots', async (c) => {
     if (err.message === 'スロット追加の権限がありません') {
       return c.json({ error: err.message }, 403)
     }
-    return c.json({ error: err.message || 'スロットの追加に失敗しました' }, 400)
+    if (err.message && err.message.includes('500件')) {
+      return c.json({ error: err.message }, 400)
+    }
+    return c.json({ error: err.message || 'スロットの追加に失敗しました' }, 500)
   }
 })
 
@@ -260,6 +284,14 @@ api.post('/events/:id/responses', async (c) => {
     }
     if (body.answers && body.answers.length > 500) {
       return c.json({ error: '回答スロット数が上限（500件）を超えています' }, 400)
+    }
+    if (body.answers) {
+      const validStatuses = new Set(['favorite', 'available', 'maybe', 'unavailable'])
+      for (const ans of body.answers) {
+        if (!ans || typeof ans.slotId !== 'string' || !validStatuses.has(ans.status)) {
+          return c.json({ error: '回答のステータス形式が不正です' }, 400)
+        }
+      }
     }
 
     const result = await submitResponse(c.env.DB, eventId, body)

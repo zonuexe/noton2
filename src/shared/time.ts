@@ -61,7 +61,44 @@ export function isValidTimeHM(timeStr?: string | null): boolean {
   if (!timeStr || typeof timeStr !== 'string') return false
   if (!/^\d{2}:\d{2}$/.test(timeStr)) return false
   const [h, m] = timeStr.split(':').map(Number)
-  return h >= 0 && h <= 24 && m >= 0 && m < 60
+  return (h >= 0 && h < 24 && m >= 0 && m < 60) || (h === 24 && m === 0)
+}
+
+// スロットの開始時刻〜終了時刻の論理整合性チェック (startTime < endTime, 00:00/24:00終了は深夜24時として許可)
+export function isValidSlotTimeRange(startTime?: string | null, endTime?: string | null): boolean {
+  if (!isValidTimeHM(startTime) || !isValidTimeHM(endTime)) return false
+  if (startTime === '24:00') return false
+  const [sh, sm] = startTime!.split(':').map(Number)
+  const [eh, em] = endTime!.split(':').map(Number)
+  const startTotal = sh * 60 + sm
+  const endTotal =
+    (endTime === '00:00' || endTime === '24:00') && startTotal > 0 ? 24 * 60 : eh * 60 + em
+  return startTotal < endTotal
+}
+
+// トントン標準24時間軸 (06:00始まり〜翌05:59終わり) に基づくソート用分数計算
+export function getTimelineSortMinutes(timeStr: string): number {
+  const [h, m] = timeStr.split(':').map(Number)
+  const adjustedHour = h < 6 ? h + 24 : h
+  return adjustedHour * 60 + (m || 0)
+}
+
+// スロット配列の比較関数 (日付昇順 -> トントン24時間軸順)
+export function compareSlots(
+  a: { slotDate: string; startTime: string },
+  b: { slotDate: string; startTime: string }
+): number {
+  if (a.slotDate !== b.slotDate) {
+    return a.slotDate.localeCompare(b.slotDate)
+  }
+  return getTimelineSortMinutes(a.startTime) - getTimelineSortMinutes(b.startTime)
+}
+
+// 外部URLの安全性検証 (http:// または https:// のみ許可)
+export function sanitizeHttpUrl(url?: string | null): string | null {
+  if (!url || typeof url !== 'string') return null
+  const trimmed = url.trim()
+  return /^https?:\/\//i.test(trimmed) ? trimmed : null
 }
 
 // 任意の開始〜終了時間帯を intervalMinutes (30 or 60分) 刻みの独立スロットに分割

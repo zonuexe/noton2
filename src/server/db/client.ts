@@ -11,6 +11,7 @@ import type {
   TimeSlot,
   User,
 } from '@/shared/types'
+import { compareSlots } from '@/shared/time'
 
 // URL用の短縮ランダムID生成 (8文字)
 // 紛らわしい文字(0, o, 1, l, i)を除いた31文字。リジェクションサンプリングによりモジュロバイアスを完全排除
@@ -142,37 +143,53 @@ export async function createEvent(
   const durationMinutes = input.durationMinutes || 60
   const slotIntervalMinutes = input.slotIntervalMinutes || 60
 
-  // 1. events テーブルに挿入
-  await db
-    .prepare(
-      `INSERT INTO events (id, admin_token, title, description, duration_minutes, slot_interval_minutes, organizer_name, creator_user_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-    .bind(
-      eventId,
-      adminToken,
-      input.title.trim(),
-      input.description?.trim() || null,
-      durationMinutes,
-      slotIntervalMinutes,
-      input.organizerName.trim(),
-      creatorUserId || null
-    )
-    .run()
+  const statements: D1PreparedStatement[] = [
+    db
+      .prepare(
+        `INSERT INTO events (id, admin_token, title, description, duration_minutes, slot_interval_minutes, organizer_name, creator_user_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .bind(
+        eventId,
+        adminToken,
+        input.title.trim(),
+        input.description?.trim() || null,
+        durationMinutes,
+        slotIntervalMinutes,
+        input.organizerName.trim(),
+        creatorUserId || null
+      ),
+  ]
 
-  // 2. time_slots テーブルに挿入 (各コマを独立した行として保存)
+  // スロットの重複を排除し、トントン24時間軸でソートしてから保存
   if (input.slots && input.slots.length > 0) {
-    const slotStatements = input.slots.map((slot, idx) => {
+    const seen = new Set<string>()
+    const uniqueSlots: Array<{ slotDate: string; startTime: string; endTime: string }> = []
+    for (const slot of input.slots) {
+      const key = `${slot.slotDate}_${slot.startTime}_${slot.endTime}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      uniqueSlots.push(slot)
+    }
+
+    uniqueSlots.sort(compareSlots)
+
+    for (let idx = 0; idx < uniqueSlots.length; idx++) {
+      const slot = uniqueSlots[idx]
       const slotId = generateShortId(10)
-      return db
-        .prepare(
-          `INSERT INTO time_slots (id, event_id, slot_date, start_time, end_time, sort_order)
-           VALUES (?, ?, ?, ?, ?, ?)`
-        )
-        .bind(slotId, eventId, slot.slotDate, slot.startTime, slot.endTime, idx)
-    })
-    await db.batch(slotStatements)
+      statements.push(
+        db
+          .prepare(
+            `INSERT INTO time_slots (id, event_id, slot_date, start_time, end_time, sort_order)
+             VALUES (?, ?, ?, ?, ?, ?)`
+          )
+          .bind(slotId, eventId, slot.slotDate, slot.startTime, slot.endTime, idx)
+      )
+    }
   }
+
+  // events と time_slots を単一トランザクションでアトミックに保存
+  await db.batch(statements)
 
   return { id: eventId, adminToken }
 }
@@ -255,14 +272,16 @@ export async function getEventById(
       sort_order: number
     }>()
 
-  const slots: TimeSlot[] = (slotRows.results || []).map((row) => ({
-    id: row.id,
-    eventId: row.event_id,
-    slotDate: row.slot_date,
-    startTime: row.start_time,
-    endTime: row.end_time,
-    sortOrder: row.sort_order,
-  }))
+  const slots: TimeSlot[] = (slotRows.results || [])
+    .map((row) => ({
+      id: row.id,
+      eventId: row.event_id,
+      slotDate: row.slot_date,
+      startTime: row.start_time,
+      endTime: row.end_time,
+      sortOrder: row.sort_order,
+    }))
+    .sort(compareSlots)
 
   // 参加者取得
   const participantRows = await db
@@ -380,6 +399,11 @@ export async function addSlotsToEvent(
     const key = `${s.slotDate}_${s.startTime}_${s.endTime}`
     if (existingSet.has(key)) continue
 
+    if (existingSet.size >= 500) {
+      throw new Error('候補日時は合計500件までしか登録できません')
+    }
+    existingSet.add(key)
+
     const slotId = generateShortId(10)
     statements.push(
       db
@@ -387,18 +411,16 @@ export async function addSlotsToEvent(
           `INSERT INTO time_slots (id, event_id, slot_date, start_time, end_time, sort_order)
            VALUES (?, ?, ?, ?, ?, ?)`
         )
-        .bind(slotId, eventId, s.slotDate, s.startTime, s.endTime, 0)
+        .bind(slotId, eventId, s.slotDate, s.startTime, s.endTime, existingSet.size - 1)
     )
     addedCount++
   }
 
   if (statements.length > 0) {
+    statements.push(
+      db.prepare(`UPDATE events SET updated_at = datetime('now') WHERE id = ?`).bind(eventId)
+    )
     await db.batch(statements)
-    // 更新日時を更新
-    await db
-      .prepare(`UPDATE events SET updated_at = datetime('now') WHERE id = ?`)
-      .bind(eventId)
-      .run()
   }
 
   return { addedCount }
@@ -632,6 +654,9 @@ export async function submitResponse(
 
   // UPDATE/INSERT/DELETE を同一トランザクションでアトミックに実行（失敗時のデータ全損を防止）
   if (statements.length > 0) {
+    statements.push(
+      db.prepare(`UPDATE events SET updated_at = datetime('now') WHERE id = ?`).bind(eventId)
+    )
     await db.batch(statements)
   }
 

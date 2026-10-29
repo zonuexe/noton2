@@ -7,7 +7,7 @@ import { AnswerForm } from './AnswerForm'
 import { MatrixTable } from './MatrixTable'
 import { AdminControls } from './AdminControls'
 import type { EventDetail } from '@/shared/types'
-import { formatDateLabel } from '@/shared/time'
+import { formatDateLabel, sanitizeHttpUrl } from '@/shared/time'
 
 export const EventDetailApp = defineVaporComponent({
   props: {
@@ -102,17 +102,17 @@ export const EventDetailApp = defineVaporComponent({
                   {event.value.creator ? (
                     <a
                       href={
-                        event.value.creator.profileUrl ||
-                        `https://github.com/${event.value.creator.username}`
+                        sanitizeHttpUrl(event.value.creator.profileUrl) ||
+                        `https://github.com/${encodeURIComponent(event.value.creator.username)}`
                       }
                       target="_blank"
                       rel="noopener noreferrer"
                       class="inline-flex items-center gap-1.5 text-stone-800 hover:text-rose-600 font-bold bg-stone-100 hover:bg-rose-50 px-2.5 py-1 rounded-full border border-stone-200 transition group"
                       title="GitHubプロフィールを確認"
                     >
-                      {event.value.creator.avatarUrl ? (
+                      {sanitizeHttpUrl(event.value.creator.avatarUrl) ? (
                         <img
-                          src={event.value.creator.avatarUrl}
+                          src={sanitizeHttpUrl(event.value.creator.avatarUrl)!}
                           alt={event.value.creator.username}
                           class="w-4 h-4 rounded-full"
                         />

@@ -9,6 +9,7 @@ import {
   updateSlotAnswer,
   bulkUpdateAnswers,
   calculateSlotSummary,
+  isSlotConfirmed,
 } from '@/shared/state'
 import type { AnswerStatus, Participant, TimeSlot } from '@/shared/types'
 
@@ -205,6 +206,13 @@ describe('shared/state - 状態遷移と操作ロジック', () => {
       expect(summary.unavailableCount).toBe(0)
       expect(summary.totalParticipants).toBe(0)
       expect(summary.statusLevel).toBe('empty')
+    })
+
+    it('isSlotConfirmed: 確定スロットIDと一致する場合のみ true を返すこと', () => {
+      expect(isSlotConfirmed('slot1', 'slot1')).toBe(true)
+      expect(isSlotConfirmed('slot1', 'slot2')).toBe(false)
+      expect(isSlotConfirmed('slot1', null)).toBe(false)
+      expect(isSlotConfirmed('slot1', undefined)).toBe(false)
     })
   })
 })

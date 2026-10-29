@@ -10,6 +10,10 @@ import {
   formatDateISO,
   isValidSlotDate,
   isValidTimeHM,
+  isValidSlotTimeRange,
+  getTimelineSortMinutes,
+  compareSlots,
+  sanitizeHttpUrl,
   formatTimeHM,
   findSlotByExactTime,
   TIMELINE_HOURS,
@@ -172,12 +176,49 @@ describe('shared/time - 日時・スロット計算ロジック', () => {
       expect(isValidSlotDate(null)).toBe(false)
     })
 
-    it('isValidTimeHM: 正しい HH:mm を判定できること', () => {
+    it('isValidTimeHM: 正しい HH:mm を判定できること（24:30等は拒否）', () => {
       expect(isValidTimeHM('10:00')).toBe(true)
       expect(isValidTimeHM('23:59')).toBe(true)
       expect(isValidTimeHM('24:00')).toBe(true)
+      expect(isValidTimeHM('24:30')).toBe(false)
       expect(isValidTimeHM('25:00')).toBe(false)
       expect(isValidTimeHM('invalid')).toBe(false)
+    })
+
+    it('isValidSlotTimeRange: 開始時刻 < 終了時刻（深夜00:00/24:00終了含む）を検証できること', () => {
+      expect(isValidSlotTimeRange('10:00', '11:00')).toBe(true)
+      expect(isValidSlotTimeRange('22:00', '00:00')).toBe(true)
+      expect(isValidSlotTimeRange('22:00', '24:00')).toBe(true)
+      expect(isValidSlotTimeRange('15:00', '12:00')).toBe(false)
+      expect(isValidSlotTimeRange('10:00', '10:00')).toBe(false)
+      expect(isValidSlotTimeRange('00:00', '00:00')).toBe(false)
+    })
+
+    it('compareSlots & getTimelineSortMinutes: トントン24時間軸（06:00〜翌05:59）順でソートできること', () => {
+      expect(getTimelineSortMinutes('06:00')).toBe(360)
+      expect(getTimelineSortMinutes('23:00')).toBe(1380)
+      expect(getTimelineSortMinutes('00:00')).toBe(1440)
+      expect(getTimelineSortMinutes('01:00')).toBe(1500)
+
+      const slots = [
+        { slotDate: '2026-10-29', startTime: '01:00', endTime: '02:00' },
+        { slotDate: '2026-10-29', startTime: '19:00', endTime: '20:00' },
+        { slotDate: '2026-10-29', startTime: '00:00', endTime: '01:00' },
+        { slotDate: '2026-10-29', startTime: '09:00', endTime: '10:00' },
+      ]
+      slots.sort(compareSlots)
+      expect(slots.map((s) => s.startTime)).toEqual(['09:00', '19:00', '00:00', '01:00'])
+    })
+
+    it('sanitizeHttpUrl: http/https のみを許可し、javascript: 等の危険なスキームを拒否すること', () => {
+      expect(sanitizeHttpUrl('https://github.com/zonuexe')).toBe('https://github.com/zonuexe')
+      expect(sanitizeHttpUrl('http://localhost:5173/avatar.png')).toBe(
+        'http://localhost:5173/avatar.png'
+      )
+      expect(sanitizeHttpUrl('javascript:alert(1)')).toBeNull()
+      expect(sanitizeHttpUrl('data:text/html,<script>alert(1)</script>')).toBeNull()
+      expect(sanitizeHttpUrl('//evil.example.com')).toBeNull()
+      expect(sanitizeHttpUrl(null)).toBeNull()
     })
   })
 })

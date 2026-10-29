@@ -27,15 +27,15 @@ app.use('*', async (c, next) => {
   }
 })
 
-// CSRF 保護 (状態変更リクエストの Origin 検証)
+// CSRF 保護 (状態変更リクエストの Origin / Sec-Fetch-Site 検証)
 app.use(
   '*',
   csrf({
     origin: (origin, c) => {
+      if (origin === new URL(c.req.url).origin) return true
       const host = c.req.header('host')
-      if (!host) return false
-      // 同一オリジン (http/https + host) を許可
-      return origin === `http://${host}` || origin === `https://${host}`
+      if (host && (origin === `http://${host}` || origin === `https://${host}`)) return true
+      return false
     },
   })
 )

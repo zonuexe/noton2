@@ -2,10 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import { defineVaporComponent, computed, ref, onMounted } from 'vue'
+import { defineVaporComponent, computed, ref, onMounted, onUnmounted } from 'vue'
 import type { AnswerStatus, EventDetail } from '@/shared/types'
 import { TIMELINE_HOURS, formatDateLabel, getSlotsForHour } from '@/shared/time'
-import { calculateSlotSummary } from '@/shared/state'
+import { calculateSlotSummary, isSlotConfirmed } from '@/shared/state'
 
 export const MatrixTable = defineVaporComponent({
   props: {
@@ -41,6 +41,10 @@ export const MatrixTable = defineVaporComponent({
       window.addEventListener('noton2-response-changed', syncStoredResponse)
     })
 
+    onUnmounted(() => {
+      window.removeEventListener('noton2-response-changed', syncStoredResponse)
+    })
+
     // ユニーク日付一覧
     const uniqueDates = computed(() => {
       const dateSet = new Set<string>()
@@ -57,11 +61,10 @@ export const MatrixTable = defineVaporComponent({
       isDeleting.value = true
       try {
         const isMe = storedResponse.value?.participantId === participantId
-        const token = isOrganizer.value
-          ? props.adminToken
-          : isMe
-            ? storedResponse.value?.editToken || ''
-            : ''
+        const token =
+          (isOrganizer.value && props.adminToken) ||
+          (isMe ? storedResponse.value?.editToken : '') ||
+          ''
 
         const res = await fetch(
           `/api/events/${props.event.id}/participants/${participantId}?token=${encodeURIComponent(token)}`,
@@ -336,11 +339,18 @@ export const MatrixTable = defineVaporComponent({
                                           title = `${slot.startTime}〜${slot.endTime} 不可`
                                         }
 
+                                        const confirmed = isSlotConfirmed(
+                                          slot.id,
+                                          props.event.confirmedSlotId
+                                        )
+
                                         return (
                                           <div
                                             key={slot.id}
-                                            class={`${cellWidthClass} h-full flex items-center justify-center text-xs select-none border-r border-white/60 cursor-default ${cellBg}`}
-                                            title={`${p.name} - ${title}`}
+                                            class={`${cellWidthClass} h-full flex items-center justify-center text-xs select-none border-r border-white/60 cursor-default ${cellBg} ${
+                                              confirmed ? 'ring-2 ring-amber-400 ring-inset z-10' : ''
+                                            }`}
+                                            title={`${p.name} - ${title}${confirmed ? ' [🎉開催決定]' : ''}`}
                                           >
                                             <span>{symbol}</span>
                                           </div>
@@ -385,11 +395,18 @@ export const MatrixTable = defineVaporComponent({
                                   <div key={hour} class="flex h-full">
                                     {slotsInHour.map((slot) => {
                                       const summary = calculateSlotSummary(props.event.participants, slot.id)
+                                      const confirmed = isSlotConfirmed(
+                                        slot.id,
+                                        props.event.confirmedSlotId
+                                      )
 
                                       let summaryClass = 'text-[11px] font-bold'
                                       let displayText = String(summary.okCount)
 
-                                      if (summary.statusLevel === 'empty') {
+                                      if (confirmed) {
+                                        summaryClass +=
+                                          ' bg-amber-400 text-amber-950 font-extrabold rounded-xs ring-2 ring-amber-500 ring-inset'
+                                      } else if (summary.statusLevel === 'empty') {
                                         summaryClass +=
                                           ' bg-rose-100 text-rose-700 font-extrabold rounded-xs'
                                         displayText = '0'
@@ -400,7 +417,7 @@ export const MatrixTable = defineVaporComponent({
                                           ' bg-sky-100 text-sky-900 font-extrabold rounded-xs'
                                       }
 
-                                      const tooltip = `${slot.startTime}〜${slot.endTime} 参加可能: ${summary.okCount}名 (未定: ${summary.maybeCount}名)`
+                                      const tooltip = `${slot.startTime}〜${slot.endTime} 参加可能: ${summary.okCount}名 (未定: ${summary.maybeCount}名)${confirmed ? ' [🎉開催決定]' : ''}`
 
                                       return (
                                         <div

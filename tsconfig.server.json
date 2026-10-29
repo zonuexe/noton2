@@ -19,6 +19,8 @@
   "include": [
     "src/index.ts",
     "src/server/**/*",
-    "src/shared/**/*"
+    "src/shared/**/*",
+    "tests/**/*",
+    "e2e/**/*"
   ]
 }

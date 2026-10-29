@@ -126,15 +126,18 @@ export const AnswerForm = defineVaporComponent({
     }
 
     // 単一セルのステータスを更新 (immutable代入で確実に再描画)
+    // ※ 後から主催者が追加した枠など answers.value[slotId] が undefined の場合は初期表示と同じ 'available' を現在値として扱う
     const applyStatusToSlot = (slotId: string, status?: AnswerStatus) => {
-      const targetStatus = status || resolveTargetStatus(activeTool.value, answers.value[slotId])
+      const current = answers.value[slotId] || 'available'
+      const targetStatus = status || resolveTargetStatus(activeTool.value, current)
       answers.value = updateSlotAnswer(answers.value, slotId, targetStatus)
     }
 
     // マウスダウン（ドラッグ開始）
     const handleMouseDown = (slotId: string) => {
       isDragging.value = true
-      const target = resolveTargetStatus(activeTool.value, answers.value[slotId])
+      const current = answers.value[slotId] || 'available'
+      const target = resolveTargetStatus(activeTool.value, current)
       dragTargetStatus.value = target
       applyStatusToSlot(slotId, target)
     }

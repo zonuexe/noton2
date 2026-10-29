@@ -4,7 +4,8 @@
 
 import { defineVaporComponent, ref } from 'vue'
 import type { EventDetail } from '@/shared/types'
-import { splitIntoSlots, formatDateLabel, getTodayISO } from '@/shared/time'
+import { splitIntoSlots, formatDateLabel, getTodayISO, isValidSlotTimeRange } from '@/shared/time'
+import { calculateSlotSummary } from '@/shared/state'
 
 export const AdminControls = defineVaporComponent({
   props: {
@@ -90,8 +91,7 @@ export const AdminControls = defineVaporComponent({
         alert('日付を選択してください')
         return
       }
-      const isMidnightEnd = newEndTime.value === '00:00' || newEndTime.value === '24:00'
-      if (!isMidnightEnd && newStartTime.value >= newEndTime.value) {
+      if (!isValidSlotTimeRange(newStartTime.value, newEndTime.value)) {
         alert('終了時刻は開始時刻より後に設定してください')
         return
       }
@@ -207,6 +207,21 @@ export const AdminControls = defineVaporComponent({
     const generateAnnouncementMessage = () => {
       const origin = typeof window !== 'undefined' ? window.location.origin : ''
       const shareUrl = `${origin}/events/${props.event.id}`
+      const confirmedSlot = props.event.slots.find((s) => s.id === props.event.confirmedSlotId)
+
+      if (confirmedSlot) {
+        return `【開催日時決定のお知らせ】${props.event.title}
+
+皆さま、日程調整へのご協力ありがとうございました！
+開催日時が以下の通り決定いたしました。
+
+🎉 確定日時: ${formatDateLabel(confirmedSlot.slotDate)} ${confirmedSlot.startTime}〜${confirmedSlot.endTime}
+👤 主催者: ${props.event.organizerName}
+▼ 詳細・回答一覧はこちら
+${shareUrl}
+
+当日よろしくお願いいたします！`
+      }
 
       return `【日程調整のお願い】${props.event.title}
 
@@ -366,6 +381,7 @@ ${shareUrl}
             <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-64 overflow-y-auto p-1">
               {props.event.slots.map((slot) => {
                 const isConfirmed = props.event.confirmedSlotId === slot.id
+                const summary = calculateSlotSummary(props.event.participants, slot.id)
                 return (
                   <button
                     key={slot.id}
@@ -378,7 +394,20 @@ ${shareUrl}
                         : 'bg-stone-50 hover:bg-amber-50 border-stone-200 hover:border-amber-300 text-stone-800'
                     }`}
                   >
-                    <div class="font-bold">{formatDateLabel(slot.slotDate)}</div>
+                    <div class="flex items-center justify-between gap-1">
+                      <span class="font-bold">{formatDateLabel(slot.slotDate)}</span>
+                      <span
+                        class={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
+                          isConfirmed
+                            ? 'bg-amber-600 text-white'
+                            : summary.okCount > 0
+                              ? 'bg-sky-100 text-sky-800'
+                              : 'bg-stone-200 text-stone-600'
+                        }`}
+                      >
+                        ◯ {summary.okCount}名{summary.maybeCount > 0 ? ` / △ ${summary.maybeCount}名` : ''}
+                      </span>
+                    </div>
                     <div class="text-sm font-mono mt-1">
                       {slot.startTime}〜{slot.endTime}
                     </div>

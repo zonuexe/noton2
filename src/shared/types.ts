@@ -97,13 +97,3 @@ export interface ConfirmSlotInput {
   adminToken?: string
   slotId: string | null
 }
-
-export interface SlotScore {
-  slotId: string
-  score: number
-  favoriteCount: number
-  availableCount: number
-  maybeCount: number
-  unavailableCount: number
-  totalResponses: number
-}

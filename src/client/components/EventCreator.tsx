@@ -4,7 +4,15 @@
 
 import { defineVaporComponent, ref, computed } from 'vue'
 import type { CreateEventInput, User } from '@/shared/types'
-import { splitIntoSlots, formatDateLabel, formatDateISO, getTodayISO } from '@/shared/time'
+import {
+  splitIntoSlots,
+  formatDateLabel,
+  formatDateISO,
+  getTodayISO,
+  compareSlots,
+  isValidSlotTimeRange,
+  sanitizeHttpUrl,
+} from '@/shared/time'
 
 export const EventCreator = defineVaporComponent({
   props: {
@@ -155,10 +163,7 @@ export const EventCreator = defineVaporComponent({
     }
 
     const sortSlots = () => {
-      slots.value.sort((a, b) => {
-        if (a.slotDate !== b.slotDate) return a.slotDate.localeCompare(b.slotDate)
-        return a.startTime.localeCompare(b.startTime)
-      })
+      slots.value.sort(compareSlots)
     }
 
     // カレンダーの日付トグル
@@ -169,42 +174,85 @@ export const EventCreator = defineVaporComponent({
         slots.value = slots.value.filter((s) => s.slotDate !== dateStr)
       } else {
         selectedDates.value = [...selectedDates.value, dateStr].sort()
-        // 設定中の時間帯をコマとして追加
-        const slotsToAdd = splitIntoSlots(
-          customStartTime.value,
-          customEndTime.value,
-          slotIntervalMinutes.value
-        )
-        slotsToAdd.forEach((slot) => {
-          slots.value.push({
-            slotDate: dateStr,
-            startTime: slot.start,
-            endTime: slot.end,
+        // 設定中の時間帯が有効な場合のみコマとして追加
+        if (isValidSlotTimeRange(customStartTime.value, customEndTime.value)) {
+          const slotsToAdd = splitIntoSlots(
+            customStartTime.value,
+            customEndTime.value,
+            slotIntervalMinutes.value
+          )
+          slotsToAdd.forEach((slot) => {
+            const exists = slots.value.some(
+              (s) => s.slotDate === dateStr && s.startTime === slot.start && s.endTime === slot.end
+            )
+            if (!exists) {
+              slots.value.push({
+                slotDate: dateStr,
+                startTime: slot.start,
+                endTime: slot.end,
+              })
+            }
           })
-        })
-        sortSlots()
+          sortSlots()
+        }
       }
     }
 
-    // 刻み幅の変更
+    // 刻み幅の変更 (既存スロットの連続時間帯を維持して新しい刻み幅で再分割)
     const handleIntervalChange = (interval: number) => {
       slotIntervalMinutes.value = interval
-      // 現在選択中の日付で再生成
-      slots.value = []
-      selectedDates.value.forEach((d) => {
-        const slotsToAdd = splitIntoSlots(
-          customStartTime.value,
-          customEndTime.value,
-          interval
-        )
-        slotsToAdd.forEach((slot) => {
-          slots.value.push({
-            slotDate: d,
-            startTime: slot.start,
-            endTime: slot.end,
+
+      if (slots.value.length === 0) {
+        if (!isValidSlotTimeRange(customStartTime.value, customEndTime.value)) return
+        selectedDates.value.forEach((d) => {
+          const slotsToAdd = splitIntoSlots(customStartTime.value, customEndTime.value, interval)
+          slotsToAdd.forEach((slot) => {
+            slots.value.push({
+              slotDate: d,
+              startTime: slot.start,
+              endTime: slot.end,
+            })
           })
         })
-      })
+        sortSlots()
+        return
+      }
+
+      // 日付ごとに既存スロットの連続する時間帯ブロックを抽出して再分割
+      const byDate = new Map<string, Array<{ startTime: string; endTime: string }>>()
+      for (const s of slots.value) {
+        const list = byDate.get(s.slotDate) || []
+        list.push({ startTime: s.startTime, endTime: s.endTime })
+        byDate.set(s.slotDate, list)
+      }
+
+      const nextSlots: Array<{ slotDate: string; startTime: string; endTime: string }> = []
+      for (const [dateStr, daySlots] of byDate.entries()) {
+        // 開始時刻順に並べて隣接スロットを結合
+        const sorted = [...daySlots].sort((a, b) => a.startTime.localeCompare(b.startTime))
+        const mergedRanges: Array<{ start: string; end: string }> = []
+        for (const item of sorted) {
+          const last = mergedRanges[mergedRanges.length - 1]
+          if (last && last.end === item.startTime && last.end !== '00:00' && last.end !== '24:00') {
+            last.end = item.endTime
+          } else {
+            mergedRanges.push({ start: item.startTime, end: item.endTime })
+          }
+        }
+
+        for (const range of mergedRanges) {
+          const resplit = splitIntoSlots(range.start, range.end, interval)
+          for (const slot of resplit) {
+            nextSlots.push({
+              slotDate: dateStr,
+              startTime: slot.start,
+              endTime: slot.end,
+            })
+          }
+        }
+      }
+
+      slots.value = nextSlots
       sortSlots()
     }
 
@@ -241,8 +289,7 @@ export const EventCreator = defineVaporComponent({
         errorMessage.value = 'まずはカレンダーから日付を選んでください'
         return
       }
-      const isMidnightEnd = customEndTime.value === '00:00' || customEndTime.value === '24:00'
-      if (!isMidnightEnd && customStartTime.value >= customEndTime.value) {
+      if (!isValidSlotTimeRange(customStartTime.value, customEndTime.value)) {
         errorMessage.value = '終了時刻は開始時刻より後に設定してください'
         return
       }
@@ -509,9 +556,9 @@ export const EventCreator = defineVaporComponent({
                   </h2>
                   {user.value ? (
                     <div class="inline-flex items-center gap-1.5 bg-rose-50 border border-rose-200 px-3 py-1 rounded-full text-xs text-rose-700 font-bold">
-                      {user.value.avatarUrl ? (
+                      {sanitizeHttpUrl(user.value.avatarUrl) ? (
                         <img
-                          src={user.value.avatarUrl}
+                          src={sanitizeHttpUrl(user.value.avatarUrl)!}
                           alt={user.value.username}
                           class="w-4 h-4 rounded-full"
                         />

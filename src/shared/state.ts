@@ -112,3 +112,10 @@ export function calculateSlotSummary(
     statusLevel,
   }
 }
+
+/**
+ * 指定されたスロットが開催確定スロットかどうかを判定する
+ */
+export function isSlotConfirmed(slotId: string, confirmedSlotId?: string | null): boolean {
+  return Boolean(confirmedSlotId && slotId === confirmedSlotId)
+}

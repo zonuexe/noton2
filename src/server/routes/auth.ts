@@ -243,8 +243,8 @@ auth.get('/dev-login', async (c) => {
   return c.redirect(returnTo)
 })
 
-// 4. ログアウト
-auth.all('/logout', (c) => {
+// 4. ログアウト (GET プリフェッチや外部画像タグによる意図しないログアウトを防ぐため POST 限定)
+auth.post('/logout', (c) => {
   deleteCookie(c, SESSION_COOKIE_NAME, { path: '/' })
   return c.redirect('/')
 })
