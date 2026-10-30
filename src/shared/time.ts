@@ -116,7 +116,24 @@ export function compareSlots(
 export function sanitizeHttpUrl(url?: string | null): string | null {
   if (!url || typeof url !== 'string') return null
   const trimmed = url.trim()
-  return /^https?:\/\//i.test(trimmed) ? trimmed : null
+  // 空白・制御文字・改行を含む URL はヘッダーインジェクション等の原因になり得るため拒否
+  if (!trimmed || /\s|[\u0000-\u001F\u007F]/.test(trimmed)) return null
+
+  try {
+    const parsed = new URL(trimmed)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
+    // userinfo を含む URL はフィッシング表示の原因になるため拒否
+    if (parsed.username || parsed.password) return null
+    return parsed.toString()
+  } catch {
+    return null
+  }
+}
+
+// 画像・プロフィール等、HTTPS のみを許可したい箇所用
+export function sanitizeHttpsUrl(url?: string | null): string | null {
+  const safe = sanitizeHttpUrl(url)
+  return safe && safe.startsWith('https://') ? safe : null
 }
 
 export interface TextSegment {

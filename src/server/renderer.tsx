@@ -4,6 +4,7 @@
 
 import { jsxRenderer } from 'hono/jsx-renderer'
 import type { User } from '@/shared/types'
+import { sanitizeHttpsUrl } from '@/shared/time'
 import { isAdminUser, type AuthBindings } from './middleware/auth'
 
 interface LayoutProps {
@@ -40,15 +41,12 @@ export const renderer = jsxRenderer(({ children, title, description, ogImage, og
     c.header('X-Robots-Tag', 'noindex, nofollow')
   }
 
-  // 安全な外部URLの検証 (http/https のみ許可)
-  const safeProfileUrl =
-    user?.profileUrl && /^https?:\/\//i.test(user.profileUrl)
-      ? user.profileUrl
-      : user
-        ? `https://github.com/${encodeURIComponent(user.username)}`
-        : '#'
-  const safeAvatarUrl =
-    user?.avatarUrl && /^https?:\/\//i.test(user.avatarUrl) ? user.avatarUrl : null
+  // 安全な外部URLの検証 (https のみ許可。他の画面と基準を揃える)
+  const safeProfileUrl = user
+    ? sanitizeHttpsUrl(user.profileUrl) ||
+      `https://github.com/${encodeURIComponent(user.username)}`
+    : '#'
+  const safeAvatarUrl = sanitizeHttpsUrl(user?.avatarUrl)
 
   return (
     <html lang="ja">

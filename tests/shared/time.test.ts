@@ -16,6 +16,7 @@ import {
   getTimelineSortMinutes,
   compareSlots,
   sanitizeHttpUrl,
+  sanitizeHttpsUrl,
   parseTextWithUrls,
   formatTimeHM,
   findSlotByExactTime,
@@ -222,6 +223,19 @@ describe('shared/time - 日時・スロット計算ロジック', () => {
       expect(sanitizeHttpUrl('data:text/html,<script>alert(1)</script>')).toBeNull()
       expect(sanitizeHttpUrl('//evil.example.com')).toBeNull()
       expect(sanitizeHttpUrl(null)).toBeNull()
+    })
+
+    it('sanitizeHttpUrl: userinfo・制御文字・空白を含む URL を拒否すること', () => {
+      expect(sanitizeHttpUrl('https://user:pass@evil.example.com')).toBeNull()
+      expect(sanitizeHttpUrl('https://example.com/\nInjected: value')).toBeNull()
+      expect(sanitizeHttpUrl('https://example.com/a b')).toBeNull()
+    })
+
+    it('sanitizeHttpsUrl: HTTPS の URL のみを許可すること', () => {
+      expect(sanitizeHttpsUrl('https://github.com/zonuexe')).toBe('https://github.com/zonuexe')
+      expect(sanitizeHttpsUrl('http://localhost:5173/avatar.png')).toBeNull()
+      expect(sanitizeHttpsUrl('javascript:alert(1)')).toBeNull()
+      expect(sanitizeHttpsUrl(null)).toBeNull()
     })
 
     it('TIME_PRESETS: 「終日」を含まず、「午前」「午後」「夜」「日中」「全日」「飲み会」の順序で定義されていること', () => {

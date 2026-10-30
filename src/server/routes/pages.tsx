@@ -10,7 +10,8 @@ import {
   getEventsByCreatorUserId,
   getParticipatedEventsByUserId,
 } from '../db/client'
-import { formatDateLabel, sanitizeHttpUrl } from '@/shared/time'
+import { formatDateLabel, sanitizeHttpsUrl } from '@/shared/time'
+import { serializeForHtmlAttribute } from '../html'
 import { isAdminUser, type AuthBindings, type AuthVariables } from '../middleware/auth'
 
 export const pages = new Hono<{
@@ -106,7 +107,7 @@ pages.get('/new', (c) => {
   const user = c.get('user')
   return c.render(
     <div>
-      <div id="event-creator-island" data-user={JSON.stringify(user || null)}></div>
+      <div id="event-creator-island" data-user={serializeForHtmlAttribute(user || null)}></div>
     </div>,
     {
       title: '日程調整を作成する',
@@ -127,13 +128,15 @@ pages.get('/mypage', async (c) => {
     getParticipatedEventsByUserId(c.env.DB, user.id),
   ])
 
+  const candidateProfileUrl = sanitizeHttpsUrl(user.profileUrl)
   const safeProfileUrl =
-    user.profileUrl && /^https:\/\/github\.com\/[a-zA-Z0-9-_]+$/.test(user.profileUrl)
-      ? user.profileUrl
-      : `https://github.com/${user.username}`
+    candidateProfileUrl && /^https:\/\/github\.com\/[A-Za-z0-9-]+\/?$/.test(candidateProfileUrl)
+      ? candidateProfileUrl
+      : `https://github.com/${encodeURIComponent(user.username)}`
+  const candidateAvatarUrl = sanitizeHttpsUrl(user.avatarUrl)
   const safeAvatarUrl =
-    user.avatarUrl && /^https:\/\/avatars\.githubusercontent\.com\//.test(user.avatarUrl)
-      ? user.avatarUrl
+    candidateAvatarUrl && /^https:\/\/avatars\.githubusercontent\.com\//.test(candidateAvatarUrl)
+      ? candidateAvatarUrl
       : null
 
   return c.render(
@@ -646,9 +649,9 @@ pages.get('/admin', async (c) => {
                 </thead>
                 <tbody class="divide-y divide-stone-100">
                   {users.map((u) => {
-                    const safeAvatar = sanitizeHttpUrl(u.avatarUrl)
+                    const safeAvatar = sanitizeHttpsUrl(u.avatarUrl)
                     const safeProfile =
-                      sanitizeHttpUrl(u.profileUrl) ||
+                      sanitizeHttpsUrl(u.profileUrl) ||
                       `https://github.com/${encodeURIComponent(u.username)}`
 
                     return (
@@ -726,7 +729,9 @@ pages.post('/admin/events/:id/delete', async (c) => {
 // イベント詳細・回答ページ
 pages.get('/events/:id', async (c) => {
   const eventId = c.req.param('id')
-  const adminToken = c.req.query('admin')
+  const rawAdminToken = c.req.query('admin')
+  const adminToken =
+    rawAdminToken && rawAdminToken.length <= 128 ? rawAdminToken : undefined
   const currentUser = c.get('user')
   const event = await getEventById(c.env.DB, eventId, adminToken, currentUser?.id)
 
@@ -765,8 +770,8 @@ pages.get('/events/:id', async (c) => {
     <div>
       <div
         id="event-detail-island"
-        data-event={JSON.stringify(event)}
-        data-user={JSON.stringify(currentUser || null)}
+        data-event={serializeForHtmlAttribute(event)}
+        data-user={serializeForHtmlAttribute(currentUser || null)}
       ></div>
     </div>,
     {
@@ -979,6 +984,9 @@ pages.get('/privacy', (c) => {
             </li>
             <li>
               <strong class="text-stone-800">Cloudflare:</strong> サービスの配信、セキュリティ保護、データ保管のために Cloudflare のインフラストラクチャを利用しています。
+            </li>
+            <li>
+              <strong class="text-stone-800">Google Fonts:</strong> 画面表示用の Web フォント配信に Google Fonts を利用しています。フォントの取得時に Google へ IP アドレス等の通信情報が送信される場合があります。
             </li>
             <li>
               <strong class="text-stone-800">行動追跡・広告の不使用:</strong> 本サービスでは、第三者による行動追跡広告や外部トラッキング用Cookieは一切使用していません。
