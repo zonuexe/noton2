@@ -1,0 +1,111 @@
+/*
+ * noton2 design tokens
+ * See DESIGN.md at the repository root for usage rules.
+ *
+ * - `@theme`        : tokens that should generate Tailwind utilities
+ *                     (e.g. bg-brand, text-ink-muted, rounded-card, shadow-cta, font-display)
+ * - `:root`         : plain CSS variables that are not utility-shaped (gradients, layout sizes)
+ * - `@utility`      : composite utilities that cannot be expressed as one token
+ *
+ * Semantic tokens point at Tailwind's default palette (oklch) wherever the
+ * site already used a palette color, so existing classes such as
+ * `bg-rose-500` and the new `bg-brand` render identically.
+ */
+
+@theme static {
+  /* ---------- Typography ---------- */
+  --font-sans: 'Noto Sans JP', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'M PLUS Rounded 1c', 'Noto Sans JP', ui-sans-serif, system-ui, sans-serif;
+
+  /* ---------- Brand (rose) ---------- */
+  --color-brand: var(--color-rose-500);
+  --color-brand-hover: var(--color-rose-600);
+  --color-brand-active: var(--color-rose-700);
+  --color-brand-ink: var(--color-rose-700);       /* text on brand-subtle, emphasized links */
+  --color-brand-link: var(--color-rose-600);      /* link hover / accent text */
+  --color-brand-subtle: var(--color-rose-100);    /* chips, icon tiles, avatar fallback */
+  --color-brand-muted: var(--color-rose-50);      /* page wash (use at /40) */
+  --color-brand-border: var(--color-rose-100);    /* card & header borders */
+  --color-brand-ring: var(--color-rose-200);      /* focus ring, CTA shadow, selection */
+  --color-brand-focus: var(--color-rose-400);     /* focused input border */
+
+  /* ---------- Neutrals (stone) ---------- */
+  --color-ink-strong: var(--color-stone-900);     /* headings, dark buttons */
+  --color-ink: var(--color-stone-800);            /* default text */
+  --color-ink-soft: var(--color-stone-700);       /* UI labels */
+  --color-ink-muted: var(--color-stone-600);      /* body copy, descriptions */
+  --color-ink-subtle: var(--color-stone-500);     /* metadata */
+  --color-ink-faint: var(--color-stone-400);      /* decorative / disabled only (fails 4.5:1) */
+  --color-surface: var(--color-white);
+  --color-surface-sunken: var(--color-stone-50);  /* tool panels */
+  --color-surface-control: var(--color-stone-100);/* secondary buttons */
+  --color-line: var(--color-stone-200);
+  --color-line-strong: var(--color-stone-300);
+
+  /* ---------- Status ---------- */
+  --color-success-subtle: var(--color-emerald-100);
+  --color-success-border: var(--color-emerald-200);
+  --color-success-ink: var(--color-emerald-800);
+  --color-pending-subtle: var(--color-amber-100);
+  --color-pending-border: var(--color-amber-200);
+  --color-pending-ink: var(--color-amber-800);
+  --color-info-subtle: var(--color-sky-100);
+  --color-info-border: var(--color-sky-200);
+  --color-info-ink: var(--color-sky-800);
+
+  /* ---------- Schedule matrix (tonton-derived, intentionally off-brand) ---------- */
+  --color-answer-available: #58b4ff;
+  --color-answer-available-ink: var(--color-white);
+  --color-answer-maybe: #f5a623;
+  --color-answer-maybe-ink: var(--color-white);
+  --color-answer-unavailable: #d4d4d4;
+  --color-answer-unavailable-ink: var(--color-stone-600);
+  --color-answer-none: var(--color-stone-100);
+  --color-answer-none-ink: var(--color-stone-400);
+  --color-matrix-header: #9c9c9c;
+  --color-matrix-accent: #f06292;
+  --color-confirmed: var(--color-amber-400);
+  --color-confirmed-ring: var(--color-amber-500);
+  --color-confirmed-ink: var(--color-amber-950);
+  --color-tally-empty: var(--color-rose-100);
+  --color-tally-empty-ink: var(--color-rose-700);
+  --color-tally-single: var(--color-sky-50);
+  --color-tally-single-ink: var(--color-sky-800);
+  --color-tally-sufficient: var(--color-sky-100);
+  --color-tally-sufficient-ink: var(--color-sky-900);
+
+  /* ---------- Radius ---------- */
+  --radius-cell: 0.125rem;   /* 2px  — matrix & tally cells */
+  --radius-chip: 0.5rem;     /* 8px  — small buttons, confirmed-date box */
+  --radius-control: 0.75rem; /* 12px — inputs, tool buttons, icon tiles */
+  --radius-card: 1rem;       /* 16px — cards, panels, large CTA */
+
+  /* ---------- Elevation ---------- */
+  --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --shadow-raised: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-cta: 0 10px 15px -3px var(--color-rose-200), 0 4px 6px -4px var(--color-rose-200);
+  --shadow-cta-hover: 0 10px 15px -3px var(--color-rose-300), 0 4px 6px -4px var(--color-rose-300);
+
+  /* ---------- Layout ---------- */
+  --container-content: 64rem; /* max-w-content (= max-w-5xl) */
+  --spacing-header: 3.5rem;   /* h-header (= h-14) */
+}
+
+:root {
+  --gradient-brand: linear-gradient(to right, var(--color-rose-500), var(--color-pink-500));
+  --gradient-hero: linear-gradient(to right, var(--color-rose-500), var(--color-pink-500), var(--color-amber-500));
+  --header-backdrop: rgb(255 255 255 / 0.8);
+}
+
+/* Gradients are for text only (logo, hero headline) — never fill surfaces with them. */
+@utility text-gradient-brand {
+  background-image: var(--gradient-brand);
+  background-clip: text;
+  color: transparent;
+}
+
+@utility text-gradient-hero {
+  background-image: var(--gradient-hero);
+  background-clip: text;
+  color: transparent;
+}
