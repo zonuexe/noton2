@@ -20,6 +20,9 @@ test.describe('イベントライフサイクルと回答登録のE2Eテスト',
     const organizerInput = page.getByPlaceholder(/山田太郎、幹事/)
     await organizerInput.fill('主催者Dev')
 
+    const descInput = page.getByPlaceholder(/オンライン（Google Meet/)
+    await descInput.fill('資料はこちら: https://example.com/docs を参照してください。')
+
     // 3. 初期状態で今日の日付が選択されているため、プリセットボタンで候補枠を一括追加
     const presetButton = page.getByRole('button', { name: /日中 \(10:00〜19:00\)/ })
     await expect(presetButton).toBeVisible()
@@ -48,6 +51,14 @@ test.describe('イベントライフサイクルと回答登録のE2Eテスト',
     await expect(page).toHaveURL(/\/events\/[a-z0-9]+/)
     const eventUrl = new URL(page.url()).pathname
     await expect(page.getByRole('heading', { name: uniqueTitle })).toBeVisible()
+
+    // 7-1. イベント説明文内のURLがオートリンクされ、rel="ugc nofollow" が付与されていることを確認
+    const descLink = page.locator('.e-description a', { hasText: 'https://example.com/docs' })
+    await expect(descLink).toBeVisible()
+    await expect(descLink).toHaveAttribute('href', 'https://example.com/docs')
+    const descRel = await descLink.getAttribute('rel')
+    expect(descRel).toContain('ugc')
+    expect(descRel).toContain('nofollow')
     await expect(page.getByText('主催者Dev')).toBeVisible()
 
     // 「みんなの予定」集計表の初期表示を確認
@@ -68,7 +79,7 @@ test.describe('イベントライフサイクルと回答登録のE2Eテスト',
     await nameInput.fill('参加者アリス')
 
     const commentInput = answerForm.getByPlaceholder(/10分ほど遅れるかもしれません/)
-    await commentInput.fill('よろしくお願いします！')
+    await commentInput.fill('よろしくお願いします！ 参考: https://example.com/alice')
 
     // 8. タイムラインのセル操作（順次切替 & 一括操作）
     // 「全枠一括: すべて◯」ボタンをクリック
@@ -111,7 +122,13 @@ test.describe('イベントライフサイクルと回答登録のE2Eテスト',
     await expect(page.getByRole('button', { name: '参加者アリス' }).first()).toBeVisible()
 
     // コメント一覧に反映されていることを確認
-    await expect(page.getByText('よろしくお願いします！')).toBeVisible()
+    await expect(page.getByText('よろしくお願いします！ 参考: ')).toBeVisible()
+    const commentLink = page.locator('blockquote a', { hasText: 'https://example.com/alice' })
+    await expect(commentLink).toBeVisible()
+    await expect(commentLink).toHaveAttribute('href', 'https://example.com/alice')
+    const commentRel = await commentLink.getAttribute('rel')
+    expect(commentRel).toContain('ugc')
+    expect(commentRel).toContain('nofollow')
 
     // 12. 主催者による「日程確定」機能の動作確認
     const confirmMenuButton = page.getByRole('button', { name: /日程を確定する/ })

@@ -13,6 +13,7 @@ test.describe('利用規約・プライバシーポリシー画面のE2Eテス�
     // 2. フッターの「利用規約」リンクをクリック
     const termsLink = page.getByRole('link', { name: '利用規約', exact: true })
     await expect(termsLink).toBeVisible()
+    await expect(termsLink).toHaveAttribute('rel', 'terms-of-service')
     await termsLink.click()
 
     // 3. 利用規約ページに遷移したことを確認
@@ -30,6 +31,7 @@ test.describe('利用規約・プライバシーポリシー画面のE2Eテス�
     // 4. フッターの「プライバシーポリシー」リンクをクリック
     const privacyLink = page.getByRole('link', { name: 'プライバシーポリシー', exact: true })
     await expect(privacyLink).toBeVisible()
+    await expect(privacyLink).toHaveAttribute('rel', 'privacy-policy')
     await privacyLink.click()
 
     // 5. プライバシーポリシーページに遷移したことを確認

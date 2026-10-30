@@ -7,7 +7,7 @@ import { AnswerForm } from './AnswerForm'
 import { MatrixTable } from './MatrixTable'
 import { AdminControls } from './AdminControls'
 import type { EventDetail, User } from '@/shared/types'
-import { formatDateLabel, sanitizeHttpUrl } from '@/shared/time'
+import { formatDateLabel, parseTextWithUrls, sanitizeHttpUrl } from '@/shared/time'
 
 export const EventDetailApp = defineVaporComponent({
   props: {
@@ -163,8 +163,22 @@ export const EventDetailApp = defineVaporComponent({
 
           {/* イベント説明 */}
           {event.value.description ? (
-            <p class="p-summary e-description bg-rose-50/50 p-4 rounded-2xl border border-rose-100 text-xs md:text-sm text-stone-700 whitespace-pre-wrap leading-relaxed">
-              {event.value.description}
+            <p class="p-summary e-description bg-rose-50/50 p-4 rounded-2xl border border-rose-100 text-xs md:text-sm text-stone-700 whitespace-pre-wrap leading-relaxed break-words">
+              {parseTextWithUrls(event.value.description).map((seg, idx) =>
+                seg.isUrl && seg.url ? (
+                  <a
+                    key={`desc-link-${idx}`}
+                    href={seg.url}
+                    target="_blank"
+                    rel="ugc nofollow external noopener noreferrer"
+                    class="text-rose-600 hover:text-rose-700 underline font-medium break-all"
+                  >
+                    {seg.text}
+                  </a>
+                ) : (
+                  seg.text
+                )
+              )}
             </p>
           ) : null}
 

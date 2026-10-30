@@ -188,11 +188,11 @@ export const renderer = jsxRenderer(({ children, title, description, ogImage, og
             <p>Cloudflare で完結する超高速・日程調整ツールです。</p>
 
             <nav aria-label="フッターナビゲーション" class="flex items-center gap-4 text-xs text-stone-500 pt-0.5">
-              <a href="/terms" class="hover:text-rose-600 hover:underline">
+              <a href="/terms" rel="terms-of-service" class="hover:text-rose-600 hover:underline">
                 利用規約
               </a>
               <span>•</span>
-              <a href="/privacy" class="hover:text-rose-600 hover:underline">
+              <a href="/privacy" rel="privacy-policy" class="hover:text-rose-600 hover:underline">
                 プライバシーポリシー
               </a>
               <span>•</span>

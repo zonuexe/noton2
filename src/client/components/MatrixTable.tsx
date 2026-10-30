@@ -4,7 +4,13 @@
 
 import { defineVaporComponent, computed, ref, onMounted, onUnmounted } from 'vue'
 import type { AnswerStatus, EventDetail, User } from '@/shared/types'
-import { TIMELINE_HOURS, formatDateLabel, getSlotsForHour, sanitizeHttpUrl } from '@/shared/time'
+import {
+  TIMELINE_HOURS,
+  formatDateLabel,
+  getSlotsForHour,
+  parseTextWithUrls,
+  sanitizeHttpUrl,
+} from '@/shared/time'
 import { calculateSlotSummary, isSlotConfirmed } from '@/shared/state'
 
 export const MatrixTable = defineVaporComponent({
@@ -484,7 +490,23 @@ export const MatrixTable = defineVaporComponent({
                       class="bg-white p-2.5 rounded-lg border border-stone-200 shadow-2xs flex items-start gap-2 m-0"
                     >
                       <cite class="not-italic font-bold text-stone-800 shrink-0">{p.name}:</cite>
-                      <span class="text-stone-600 break-words">{p.comment}</span>
+                      <span class="text-stone-600 break-words">
+                        {parseTextWithUrls(p.comment).map((seg, idx) =>
+                          seg.isUrl && seg.url ? (
+                            <a
+                              key={`comm-link-${p.id}-${idx}`}
+                              href={seg.url}
+                              target="_blank"
+                              rel="ugc nofollow external noopener noreferrer"
+                              class="text-rose-600 hover:text-rose-700 underline font-medium break-all"
+                            >
+                              {seg.text}
+                            </a>
+                          ) : (
+                            seg.text
+                          )
+                        )}
+                      </span>
                     </blockquote>
                   ))}
               </div>

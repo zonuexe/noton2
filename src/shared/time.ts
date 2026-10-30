@@ -119,6 +119,44 @@ export function sanitizeHttpUrl(url?: string | null): string | null {
   return /^https?:\/\//i.test(trimmed) ? trimmed : null
 }
 
+export interface TextSegment {
+  isUrl: boolean
+  text: string
+  url?: string
+}
+
+// ユーザー入力テキスト内の URL を検出し、テキスト断片と URL 断片に分割
+// (末尾の日本語約物や句読点、閉じ括弧などは URL から除外)
+export function parseTextWithUrls(text?: string | null): TextSegment[] {
+  if (!text) return []
+  const URL_REGEX = /(https?:\/\/[A-Za-z0-9\-._~:/?#\[\]@!$&'*+,;=%]+)/g
+  const parts = text.split(URL_REGEX)
+  const result: TextSegment[] = []
+
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i]
+    if (!part) continue
+    if (i % 2 === 1) {
+      let url = part
+      let trailing = ''
+      // URL末尾に付着した句読点や括弧、日本語約物を切り離す
+      const match = url.match(/([.,!?:;]+|[()]+|[。、！？]+)$/)
+      if (match) {
+        trailing = match[0]
+        url = url.slice(0, -trailing.length)
+      }
+      result.push({ isUrl: true, text: url, url })
+      if (trailing) {
+        result.push({ isUrl: false, text: trailing })
+      }
+    } else {
+      result.push({ isUrl: false, text: part })
+    }
+  }
+
+  return result
+}
+
 // 任意の開始〜終了時間帯を intervalMinutes (30 or 60分) 刻みの独立スロットに分割
 // ※ 終了時刻が '00:00' の場合は深夜24:00 (24時間表記) として計算
 export function splitIntoSlots(

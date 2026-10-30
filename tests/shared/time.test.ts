@@ -16,6 +16,7 @@ import {
   getTimelineSortMinutes,
   compareSlots,
   sanitizeHttpUrl,
+  parseTextWithUrls,
   formatTimeHM,
   findSlotByExactTime,
   TIMELINE_HOURS,
@@ -270,6 +271,52 @@ describe('shared/time - 日時・スロット計算ロジック', () => {
       expect(slots.filter((s) => s.slotDate === '2026-11-02')).toHaveLength(12)
       expect(slots.filter((s) => s.slotDate === '2026-11-03')).toHaveLength(5)
       expect(slots).toHaveLength(21)
+    })
+  })
+
+  describe('parseTextWithUrls: ユーザー入力テキストのURL自動抽出と分離', () => {
+    it('URLを含まないプレーンテキストはそのまま1つのセグメントとして返すこと', () => {
+      const segments = parseTextWithUrls('こんにちは。日程調整をお願いします。')
+      expect(segments).toEqual([
+        { isUrl: false, text: 'こんにちは。日程調整をお願いします。' },
+      ])
+    })
+
+    it('本文中の http / https の URL を正しく検出し分離できること', () => {
+      const text = '詳細は https://example.com/events/123 をご覧ください。'
+      const segments = parseTextWithUrls(text)
+      expect(segments).toEqual([
+        { isUrl: false, text: '詳細は ' },
+        { isUrl: true, text: 'https://example.com/events/123', url: 'https://example.com/events/123' },
+        { isUrl: false, text: ' をご覧ください。' },
+      ])
+    })
+
+    it('末尾の句読点（。、！？.!?:;）や括弧がURLから除外されること', () => {
+      const text = '会場案内(https://example.com/map)。質問は https://example.com/faq?q=1! です。'
+      const segments = parseTextWithUrls(text)
+      expect(segments).toEqual([
+        { isUrl: false, text: '会場案内(' },
+        { isUrl: true, text: 'https://example.com/map', url: 'https://example.com/map' },
+        { isUrl: false, text: ')。質問は ' },
+        { isUrl: true, text: 'https://example.com/faq?q=1', url: 'https://example.com/faq?q=1' },
+        { isUrl: false, text: '!' },
+        { isUrl: false, text: ' です。' },
+      ])
+    })
+
+    it('javascript: や data: など安全でないスキームはURLとして検出しないこと', () => {
+      const text = 'javascript:alert(1) や data:text/html,abc は対象外です。'
+      const segments = parseTextWithUrls(text)
+      expect(segments).toEqual([
+        { isUrl: false, text: 'javascript:alert(1) や data:text/html,abc は対象外です。' },
+      ])
+    })
+
+    it('空文字列や null/undefined の入力にも安全に対処できること', () => {
+      expect(parseTextWithUrls('')).toEqual([])
+      expect(parseTextWithUrls(null)).toEqual([])
+      expect(parseTextWithUrls(undefined)).toEqual([])
     })
   })
 })
