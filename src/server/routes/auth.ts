@@ -5,6 +5,7 @@
 import { Hono } from 'hono'
 import { deleteCookie, getCookie, setCookie, setSignedCookie } from 'hono/cookie'
 import { upsertUser } from '../db/client'
+import { timingSafeEqual } from '../crypto'
 import {
   type AuthBindings,
   type AuthVariables,
@@ -20,18 +21,53 @@ export const auth = new Hono<{
 const OAUTH_STATE_COOKIE = 'noton2_oauth_state'
 const RETURN_TO_COOKIE = 'noton2_return_to'
 
+function sessionCookieOptions(isHttps: boolean) {
+  return {
+    httpOnly: true,
+    secure: isHttps,
+    sameSite: 'Lax' as const,
+    path: '/',
+    priority: 'high' as const,
+    // HTTPS では __Host- プレフィックスを付与し、Cookie の注入・上書きを防ぐ
+    ...(isHttps ? { prefix: 'host' as const } : {}),
+    maxAge: 30 * 24 * 60 * 60, // 30日
+  }
+}
+
+function oauthCookieOptions(isHttps: boolean, maxAge: number) {
+  return {
+    httpOnly: true,
+    secure: isHttps,
+    sameSite: 'Lax' as const,
+    path: '/',
+    ...(isHttps ? { prefix: 'host' as const } : {}),
+    maxAge,
+  }
+}
+
+function oauthCookieDeleteOptions(isHttps: boolean) {
+  return {
+    path: '/',
+    ...(isHttps ? { prefix: 'host' as const } : {}),
+  }
+}
+
 /**
  * オープンリダイレクト攻撃を防ぐため、安全な同一オリジンの相対パスのみを許可する
  */
 export function sanitizeReturnTo(url?: string | null): string {
   if (!url || typeof url !== 'string') return '/'
   const trimmed = url.trim()
-  // / から始まり、// や /\ やコロン（例: javascript:, http:）を含まない相対パスのみ許可
+  if (trimmed.length > 512) return '/'
+  // / から始まり、// や /\ やコロン（例: javascript:, http:）、バックスラッシュ、
+  // 制御文字を含まない相対パスのみ許可する
   if (
     trimmed.startsWith('/') &&
     !trimmed.startsWith('//') &&
     !trimmed.startsWith('/\\') &&
-    !trimmed.includes(':')
+    !trimmed.includes('\\') &&
+    !trimmed.includes(':') &&
+    !/[\u0000-\u001F\u007F]/.test(trimmed)
   ) {
     return trimmed
   }
@@ -93,21 +129,8 @@ auth.get('/github', (c) => {
   const redirectUri = `${origin}/auth/github/callback`
 
   const isHttps = c.req.url.startsWith('https')
-  setCookie(c, OAUTH_STATE_COOKIE, state, {
-    httpOnly: true,
-    secure: isHttps,
-    sameSite: 'Lax',
-    path: '/',
-    maxAge: 600, // 10分
-  })
-
-  setCookie(c, RETURN_TO_COOKIE, returnTo, {
-    httpOnly: true,
-    secure: isHttps,
-    sameSite: 'Lax',
-    path: '/',
-    maxAge: 600,
-  })
+  setCookie(c, OAUTH_STATE_COOKIE, state, oauthCookieOptions(isHttps, 600)) // 10分
+  setCookie(c, RETURN_TO_COOKIE, returnTo, oauthCookieOptions(isHttps, 600))
 
   const githubAuthUrl = new URL('https://github.com/login/oauth/authorize')
   githubAuthUrl.searchParams.set('client_id', clientId)
@@ -123,16 +146,20 @@ auth.get('/github/callback', async (c) => {
   try {
     const code = c.req.query('code')
     const state = c.req.query('state')
-    const savedState = getCookie(c, OAUTH_STATE_COOKIE)
-    const returnTo = sanitizeReturnTo(getCookie(c, RETURN_TO_COOKIE))
+    const isHttps = c.req.url.startsWith('https')
+    const savedState = getCookie(c, OAUTH_STATE_COOKIE, isHttps ? 'host' : undefined)
+    const returnTo = sanitizeReturnTo(
+      getCookie(c, RETURN_TO_COOKIE, isHttps ? 'host' : undefined)
+    )
 
-    // 状態検証
-    if (!code || !state || state !== savedState) {
+    // 状態検証 (使い捨て Cookie を必ず削除してリプレイを防ぐ)
+    const isStateValid = Boolean(code && state && savedState && timingSafeEqual(state, savedState))
+    deleteCookie(c, OAUTH_STATE_COOKIE, oauthCookieDeleteOptions(isHttps))
+    deleteCookie(c, RETURN_TO_COOKIE, oauthCookieDeleteOptions(isHttps))
+
+    if (!isStateValid) {
       return c.text('OAuth state mismatch or missing authorization code.', 400)
     }
-
-    deleteCookie(c, OAUTH_STATE_COOKIE, { path: '/' })
-    deleteCookie(c, RETURN_TO_COOKIE, { path: '/' })
 
     const clientId = c.env.GITHUB_CLIENT_ID
     const clientSecret = c.env.GITHUB_CLIENT_SECRET
@@ -163,9 +190,12 @@ auth.get('/github/callback', async (c) => {
       return c.text('Failed to exchange GitHub authorization code.', 500)
     }
 
-    const tokenData = (await tokenRes.json()) as { access_token?: string; error?: string }
-    if (!tokenData.access_token) {
-      return c.text(`GitHub token error: ${tokenData.error || 'Unknown error'}`, 400)
+    const tokenData = (await tokenRes.json().catch(() => null)) as
+      | { access_token?: unknown; error?: unknown }
+      | null
+    if (!tokenData || typeof tokenData.access_token !== 'string' || !tokenData.access_token) {
+      const errorCode = typeof tokenData?.error === 'string' ? tokenData.error : 'Unknown error'
+      return c.text(`GitHub token error: ${errorCode}`, 400)
     }
 
     // 2-2. ユーザー情報取得
@@ -181,38 +211,48 @@ auth.get('/github/callback', async (c) => {
       return c.text('Failed to fetch user profile from GitHub API.', 500)
     }
 
-    const ghUser = (await userRes.json()) as {
-      id: number
-      login: string
-      name: string | null
-      avatar_url: string
-      html_url: string
+    const ghUser = (await userRes.json().catch(() => null)) as {
+      id?: unknown
+      login?: unknown
+      name?: unknown
+      avatar_url?: unknown
+      html_url?: unknown
+    } | null
+
+    if (
+      !ghUser ||
+      typeof ghUser.id !== 'number' ||
+      !Number.isInteger(ghUser.id) ||
+      ghUser.id <= 0 ||
+      typeof ghUser.login !== 'string' ||
+      !/^[A-Za-z0-9-]{1,39}$/.test(ghUser.login)
+    ) {
+      return c.text('GitHub から取得したユーザー情報が不正です。', 502)
     }
 
     // 2-3. D1 にユーザーを保存
     const user = await upsertUser(c.env.DB, {
       githubId: ghUser.id,
       username: ghUser.login,
-      displayName: ghUser.name || ghUser.login,
-      avatarUrl: ghUser.avatar_url,
-      profileUrl: ghUser.html_url,
+      displayName: typeof ghUser.name === 'string' && ghUser.name ? ghUser.name : ghUser.login,
+      avatarUrl: typeof ghUser.avatar_url === 'string' ? ghUser.avatar_url : null,
+      profileUrl: typeof ghUser.html_url === 'string' ? ghUser.html_url : null,
     })
 
     // 2-4. セッション Cookie 発行
     const secret = getSessionSecret(c.env)
-    const isHttps = c.req.url.startsWith('https')
-    await setSignedCookie(c, SESSION_COOKIE_NAME, user.id, secret, {
-      httpOnly: true,
-      secure: isHttps,
-      sameSite: 'Lax',
-      path: '/',
-      maxAge: 30 * 24 * 60 * 60, // 30日
-    })
+    await setSignedCookie(
+      c,
+      SESSION_COOKIE_NAME,
+      user.id,
+      secret,
+      sessionCookieOptions(isHttps)
+    )
 
     return c.redirect(returnTo)
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('OAuth callback error:', err)
-    return c.text(`GitHub認証処理中にエラーが発生しました: ${err.message || 'Unknown error'}`, 500)
+    return c.text('GitHub認証処理中にエラーが発生しました。時間をおいて再度お試しください。', 500)
   }
 })
 
@@ -232,20 +272,27 @@ auth.get('/dev-login', async (c) => {
   })
 
   const secret = getSessionSecret(c.env)
-  await setSignedCookie(c, SESSION_COOKIE_NAME, user.id, secret, {
-    httpOnly: true,
-    secure: false,
-    sameSite: 'Lax',
-    path: '/',
-    maxAge: 30 * 24 * 60 * 60,
-  })
+  const isHttps = c.req.url.startsWith('https')
+  await setSignedCookie(
+    c,
+    SESSION_COOKIE_NAME,
+    user.id,
+    secret,
+    sessionCookieOptions(isHttps)
+  )
 
   return c.redirect(returnTo)
 })
 
 // 4. ログアウト (GET プリフェッチや外部画像タグによる意図しないログアウトを防ぐため POST 限定)
 auth.post('/logout', (c) => {
+  // 旧方式 (プレフィックスなし) と __Host- の両方を削除する
   deleteCookie(c, SESSION_COOKIE_NAME, { path: '/' })
+  deleteCookie(c, SESSION_COOKIE_NAME, { path: '/', prefix: 'host' })
+  deleteCookie(c, OAUTH_STATE_COOKIE, { path: '/' })
+  deleteCookie(c, OAUTH_STATE_COOKIE, { path: '/', prefix: 'host' })
+  deleteCookie(c, RETURN_TO_COOKIE, { path: '/' })
+  deleteCookie(c, RETURN_TO_COOKIE, { path: '/', prefix: 'host' })
   return c.redirect('/')
 })
 

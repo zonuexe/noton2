@@ -14,6 +14,10 @@ export type AuthBindings = {
   SESSION_SECRET?: string
   ADMIN_GITHUB_USERNAMES?: string
   ADMIN_GITHUB_IDS?: string
+  // Cloudflare Rate Limiting bindings (optional)
+  WRITE_RATE_LIMITER?: RateLimit
+  RESPONSE_RATE_LIMITER?: RateLimit
+  AUTH_RATE_LIMITER?: RateLimit
 }
 
 export type AuthVariables = {
@@ -79,7 +83,15 @@ export const authMiddleware = createMiddleware<{
 }>(async (c, next) => {
   const secret = getSessionSecret(c.env)
   try {
-    const userId = await getSignedCookie(c, secret, SESSION_COOKIE_NAME)
+    // HTTPS では __Host- プレフィックス付き Cookie のみを受け付ける。
+    // これによりサブドメインからの Cookie 注入 (cookie tossing) を防ぐ。
+    const isHttps = c.req.url.startsWith('https')
+    const userId = await getSignedCookie(
+      c,
+      secret,
+      SESSION_COOKIE_NAME,
+      isHttps ? 'host' : undefined
+    )
     if (userId) {
       const user = await getUserById(c.env.DB, userId)
       c.set('user', user)

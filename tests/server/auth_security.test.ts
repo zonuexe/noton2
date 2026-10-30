@@ -41,6 +41,16 @@ describe('server/auth - セキュリティと情報漏洩防止', () => {
       expect(sanitizeReturnTo('/javascript:alert(1)')).toBe('/')
     })
 
+    it('途中にバックスラッシュや制御文字を含むパスは拒否されること', () => {
+      expect(sanitizeReturnTo('/foo/\\evil.example.com')).toBe('/')
+      expect(sanitizeReturnTo('/foo\r\nLocation: https://evil.example.com')).toBe('/')
+      expect(sanitizeReturnTo('/foo\u0000bar')).toBe('/')
+    })
+
+    it('長すぎる returnTo は拒否されること', () => {
+      expect(sanitizeReturnTo(`/${'a'.repeat(512)}`)).toBe('/')
+    })
+
     it('null / undefined / 空文字の場合はルート / になること', () => {
       expect(sanitizeReturnTo(null)).toBe('/')
       expect(sanitizeReturnTo(undefined)).toBe('/')
