@@ -47,6 +47,12 @@ mise run setup
 cp .dev.vars.example .dev.vars
 ```
 
+`SESSION_SECRET` は開発環境でも推測困難な値にしておくことを推奨します（本番ビルドのプレビューではサンプル値が拒否されます）。
+
+```bash
+openssl rand -base64 48
+```
+
 #### GitHub OAuth App の作成（本物の GitHub ログインを使う場合）
 1. [GitHub Settings > Developer settings > OAuth Apps](https://github.com/settings/applications/new) にアクセス
 2. 以下を入力して作成:
@@ -111,11 +117,35 @@ npx wrangler secret put GITHUB_CLIENT_SECRET
 npx wrangler secret put SESSION_SECRET
 ```
 
+`SESSION_SECRET` は推測不可能な十分長い値にしてください（例: `openssl rand -base64 48`）。
+`.dev.vars.example` に記載されたサンプル値や 32 文字未満の値は、本番環境では起動時に拒否されます。
+
 ### 4. デプロイ
 
 ```bash
 mise run deploy
 ```
+
+---
+
+## セキュリティについて
+
+本プロジェクトでは以下の対策を実装しています。
+
+* **セッション / OAuth**: `HttpOnly` / `Secure` / `SameSite=Lax` Cookie、HTTPS 時の `__Host-` プレフィックス、OAuth `state` 検証
+* **CSRF**: `Origin` / `Sec-Fetch-Site` の検証、JSON API の `Content-Type` 強制
+* **XSS**: JSX / Vue によるエスケープ、CSP（本番は外部スクリプト・`unsafe-inline` なし）、data 属性への安全な JSON 埋め込み
+* **認可**: 主催者トークン / 作成者アカウント / 参加者編集トークンの検証、定時間比較
+* **入力検証**: 文字数・配列長・日時形式・リクエストサイズの上限、内部エラーメッセージの秘匿
+* **ヘッダー**: HSTS、`X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`、`Permissions-Policy`、COOP/CORP
+* **レート制限**: Cloudflare Rate Limiting binding（書き込み・回答・認証）
+
+### 運用上の注意
+
+* **管理者の指定は GitHub のユーザー名ではなく数値 ID (`ADMIN_GITHUB_IDS`) を推奨します。** GitHub のユーザー名は変更・再利用可能なため、ユーザー名による管理者指定はアカウント乗っ取りのリスクがあります。
+* 主催者用の `?admin=<token>` URL は、共有・ブックマークすると URL がログ等に残ります。継続利用する場合は GitHub ログインで主催者としてアクセスしてください。
+* Cloudflare 側でも WAF の Managed Rules、Bot Fight Mode、必要に応じて Access による `/admin` の保護を有効化することを推奨します。
+* 依存関係の脆弱性は定期的に `pnpm audit --prod` で確認してください。
 
 ---
 
