@@ -199,7 +199,7 @@ export const renderer = jsxRenderer(({ children, title, description, ogImage, og
               <a
                 href="https://github.com/zonuexe/noton2"
                 target="_blank"
-                rel="external noopener noreferrer"
+                rel="external"
                 class="hover:text-rose-600 hover:underline inline-flex items-center gap-1"
               >
                 GitHub (OSS)

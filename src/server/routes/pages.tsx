@@ -160,7 +160,7 @@ pages.get('/mypage', async (c) => {
               <a
                 href={safeProfileUrl}
                 target="_blank"
-                rel="author external noopener noreferrer"
+                rel="author external"
                 class="u-url p-nickname text-xs text-rose-600 hover:text-rose-700 hover:underline font-mono"
                 title="GitHubプロフィールを開く"
               >
@@ -574,7 +574,7 @@ pages.get('/admin', async (c) => {
                           <a
                             href={`https://github.com/${encodeURIComponent(ev.creatorUsername)}`}
                             target="_blank"
-                            rel="external noopener noreferrer"
+                            rel="external"
                             class="text-[11px] text-rose-600 hover:underline font-mono"
                           >
                             @{ev.creatorUsername}
@@ -674,7 +674,7 @@ pages.get('/admin', async (c) => {
                               <a
                                 href={safeProfile}
                                 target="_blank"
-                                rel="external noopener noreferrer"
+                                rel="external"
                                 class="u-url p-nickname text-[11px] text-rose-600 hover:underline font-mono"
                               >
                                 @{u.username} ↗
@@ -1001,7 +1001,7 @@ pages.get('/privacy', (c) => {
             6. お問い合わせ
           </h2>
           <p class="text-sm">
-            本ポリシーまたは本サービスに関するご質問・不具合報告・データ削除等のご要望は、<address class="not-italic inline"><a href="https://github.com/zonuexe/noton2/issues" target="_blank" rel="external noopener noreferrer" class="text-rose-600 hover:underline">公式リポジトリ（GitHub Issue / Discussions）</a></address>よりご連絡ください。
+            本ポリシーまたは本サービスに関するご質問・不具合報告・データ削除等のご要望は、<address class="not-italic inline"><a href="https://github.com/zonuexe/noton2/issues" target="_blank" rel="external" class="text-rose-600 hover:underline">公式リポジトリ（GitHub Issue / Discussions）</a></address>よりご連絡ください。
           </p>
         </section>
 

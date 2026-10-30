@@ -110,7 +110,7 @@ export const EventDetailApp = defineVaporComponent({
                         `https://github.com/${encodeURIComponent(event.value.creator.username)}`
                       }
                       target="_blank"
-                      rel="author external noopener noreferrer"
+                      rel="author external"
                       class="u-url inline-flex items-center gap-1.5 text-stone-800 hover:text-rose-600 font-bold bg-stone-100 hover:bg-rose-50 px-2.5 py-1 rounded-full border border-stone-200 transition group"
                       title="GitHubプロフィールを確認"
                     >
@@ -170,7 +170,7 @@ export const EventDetailApp = defineVaporComponent({
                     key={`desc-link-${idx}`}
                     href={seg.url}
                     target="_blank"
-                    rel="ugc nofollow external noopener noreferrer"
+                    rel="ugc nofollow external"
                     class="text-rose-600 hover:text-rose-700 underline font-medium break-all"
                   >
                     {seg.text}

@@ -497,7 +497,7 @@ export const MatrixTable = defineVaporComponent({
                               key={`comm-link-${p.id}-${idx}`}
                               href={seg.url}
                               target="_blank"
-                              rel="ugc nofollow external noopener noreferrer"
+                              rel="ugc nofollow external"
                               class="text-rose-600 hover:text-rose-700 underline font-medium break-all"
                             >
                               {seg.text}
