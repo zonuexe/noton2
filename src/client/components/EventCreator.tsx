@@ -556,6 +556,9 @@ export const EventCreator = defineVaporComponent({
                     {isCopiedAdminUrl.value ? 'コピー完了！' : '管理URLコピー'}
                   </button>
                 </div>
+                <p class="text-[11px] text-rose-700 mt-2 leading-relaxed">
+                  ⚠️ このURLを知っている人は誰でもイベントを編集・削除できます。共有範囲に注意してください。
+                </p>
               </div>
             </div>
 

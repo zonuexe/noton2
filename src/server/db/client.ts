@@ -17,6 +17,7 @@ import type {
   UserParticipatedEventSummary,
 } from '@/shared/types'
 import { compareSlots } from '@/shared/time'
+import { timingSafeEqual } from '../crypto'
 
 // URL用の短縮ランダムID生成 (8文字)
 // 紛らわしい文字(0, o, 1, l, i)を除いた31文字。リジェクションサンプリングによりモジュロバイアスを完全排除
@@ -58,7 +59,7 @@ export async function verifyOrganizerPermission(
     return { isAuthorized: false, event: null }
   }
 
-  const isTokenAdmin = Boolean(adminToken && adminToken === event.admin_token)
+  const isTokenAdmin = timingSafeEqual(adminToken, event.admin_token)
   const isUserAdmin = Boolean(
     currentUserId && event.creator_user_id && currentUserId === event.creator_user_id
   )
@@ -266,7 +267,7 @@ export async function getEventById(
   }
 
   // 主催者・管理者判定
-  const isTokenAdmin = Boolean(adminToken && adminToken === eventRow.admin_token)
+  const isTokenAdmin = timingSafeEqual(adminToken, eventRow.admin_token)
   const isUserAdmin = Boolean(
     currentUserId && eventRow.creator_user_id && currentUserId === eventRow.creator_user_id
   )
@@ -644,7 +645,7 @@ export async function submitResponse(
       .bind(participantId, eventId)
       .first<{ id: string; user_id: string | null; edit_token: string }>()
 
-    const isTokenValid = Boolean(editToken && existing && existing.edit_token === editToken)
+    const isTokenValid = timingSafeEqual(editToken, existing?.edit_token)
     const isUserOwner = Boolean(
       currentUserId && existing && existing.user_id && existing.user_id === currentUserId
     )
@@ -809,31 +810,32 @@ export async function deleteParticipant(
     .bind(eventId)
     .first<{ admin_token: string; creator_user_id: string | null }>()
 
-  const isTokenAdmin = Boolean(token && event && event.admin_token === token)
+  const isTokenAdmin = timingSafeEqual(token, event?.admin_token)
   const isUserAdmin = Boolean(
     currentUserId && event?.creator_user_id && currentUserId === event.creator_user_id
   )
   const isAdmin = isTokenAdmin || isUserAdmin
 
-  let query: string
-  if (isAdmin) {
-    query = `DELETE FROM participants WHERE id = ? AND event_id = ?`
-    const res = await db.prepare(query).bind(participantId, eventId).run()
-    return res.meta.changes > 0
-  } else if (token && currentUserId) {
-    query = `DELETE FROM participants WHERE id = ? AND event_id = ? AND (edit_token = ? OR user_id = ?)`
-    const res = await db.prepare(query).bind(participantId, eventId, token, currentUserId).run()
-    return res.meta.changes > 0
-  } else if (token) {
-    query = `DELETE FROM participants WHERE id = ? AND event_id = ? AND edit_token = ?`
-    const res = await db.prepare(query).bind(participantId, eventId, token).run()
-    return res.meta.changes > 0
-  } else if (currentUserId) {
-    query = `DELETE FROM participants WHERE id = ? AND event_id = ? AND user_id = ?`
-    const res = await db.prepare(query).bind(participantId, eventId, currentUserId).run()
-    return res.meta.changes > 0
+  if (!isAdmin) {
+    // 編集トークンも他のトークンと同様に定時間比較で検証する (SQL の = 比較に委ねない)
+    const participant = await db
+      .prepare(`SELECT user_id, edit_token FROM participants WHERE id = ? AND event_id = ?`)
+      .bind(participantId, eventId)
+      .first<{ user_id: string | null; edit_token: string }>()
+    if (!participant) return false
+
+    const isTokenOwner = timingSafeEqual(token, participant.edit_token)
+    const isUserOwner = Boolean(
+      currentUserId && participant.user_id && participant.user_id === currentUserId
+    )
+    if (!isTokenOwner && !isUserOwner) return false
   }
-  return false
+
+  const res = await db
+    .prepare(`DELETE FROM participants WHERE id = ? AND event_id = ?`)
+    .bind(participantId, eventId)
+    .run()
+  return res.meta.changes > 0
 }
 
 export async function getEventsByCreatorUserId(

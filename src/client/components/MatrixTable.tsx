@@ -9,7 +9,7 @@ import {
   formatDateLabel,
   getSlotsForHour,
   parseTextWithUrls,
-  sanitizeHttpUrl,
+  sanitizeHttpsUrl,
 } from '@/shared/time'
 import { calculateSlotSummary, isSlotConfirmed } from '@/shared/state'
 
@@ -80,8 +80,12 @@ export const MatrixTable = defineVaporComponent({
           ''
 
         const res = await fetch(
-          `/api/events/${props.event.id}/participants/${participantId}?token=${encodeURIComponent(token)}`,
-          { method: 'DELETE' }
+          `/api/events/${props.event.id}/participants/${participantId}`,
+          {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token }),
+          }
         )
 
         if (!res.ok) {
@@ -116,10 +120,13 @@ export const MatrixTable = defineVaporComponent({
 
       isDeleting.value = true
       try {
-        const query = props.adminToken ? `&admin=${encodeURIComponent(props.adminToken)}` : ''
         const res = await fetch(
-          `/api/events/${props.event.id}/slots-by-date?date=${encodeURIComponent(slotDate)}${query}`,
-          { method: 'DELETE' }
+          `/api/events/${props.event.id}/slots-by-date?date=${encodeURIComponent(slotDate)}`,
+          {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ adminToken: props.adminToken || undefined }),
+          }
         )
 
         if (!res.ok) {
@@ -273,7 +280,7 @@ export const MatrixTable = defineVaporComponent({
                             (storedResponse.value?.participantId === p.id &&
                               Boolean(storedResponse.value?.editToken)) ||
                             Boolean(props.currentUser && p.userId && p.userId === props.currentUser.id)
-                          const avatarUrl = sanitizeHttpUrl(p.user?.avatarUrl)
+                          const avatarUrl = sanitizeHttpsUrl(p.user?.avatarUrl)
 
                           return (
                             <div key={p.id} class="flex items-center gap-2">

@@ -7,7 +7,7 @@ import { AnswerForm } from './AnswerForm'
 import { MatrixTable } from './MatrixTable'
 import { AdminControls } from './AdminControls'
 import type { EventDetail, User } from '@/shared/types'
-import { formatDateLabel, parseTextWithUrls, sanitizeHttpUrl } from '@/shared/time'
+import { formatDateLabel, parseTextWithUrls, sanitizeHttpsUrl } from '@/shared/time'
 
 export const EventDetailApp = defineVaporComponent({
   props: {
@@ -45,8 +45,10 @@ export const EventDetailApp = defineVaporComponent({
       isReloading.value = true
       try {
         const token = effectiveAdminToken.value || urlAdminToken.value
-        const query = token ? `?admin=${encodeURIComponent(token)}` : ''
-        const res = await fetch(`/api/events/${event.value.id}${query}`)
+        // 管理トークンは URL ではなくヘッダーで送信し、ログへの露出を減らす
+        const res = await fetch(`/api/events/${event.value.id}`, {
+          headers: token ? { 'X-Admin-Token': token } : undefined,
+        })
         if (res.ok) {
           const updated = await res.json()
           event.value = updated
@@ -106,7 +108,7 @@ export const EventDetailApp = defineVaporComponent({
                   {event.value.creator ? (
                     <a
                       href={
-                        sanitizeHttpUrl(event.value.creator.profileUrl) ||
+                        sanitizeHttpsUrl(event.value.creator.profileUrl) ||
                         `https://github.com/${encodeURIComponent(event.value.creator.username)}`
                       }
                       target="_blank"
@@ -114,9 +116,9 @@ export const EventDetailApp = defineVaporComponent({
                       class="u-url inline-flex items-center gap-1.5 text-stone-800 hover:text-rose-600 font-bold bg-stone-100 hover:bg-rose-50 px-2.5 py-1 rounded-full border border-stone-200 transition group"
                       title="GitHubプロフィールを確認"
                     >
-                      {sanitizeHttpUrl(event.value.creator.avatarUrl) ? (
+                      {sanitizeHttpsUrl(event.value.creator.avatarUrl) ? (
                         <img
-                          src={sanitizeHttpUrl(event.value.creator.avatarUrl)!}
+                          src={sanitizeHttpsUrl(event.value.creator.avatarUrl)!}
                           alt={event.value.creator.username}
                           class="u-photo w-4 h-4 rounded-full"
                         />
