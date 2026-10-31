@@ -2,7 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import { defineVaporComponent, ref, computed, watch } from 'vue'
+import { defineVaporComponent, ref, computed, watch, isRef } from 'vue'
+import { VaporFor } from 'vue-jsx-vapor'
 import type { CreateEventInput, User } from '@/shared/types'
 import {
   TIME_PRESETS,
@@ -1020,39 +1021,37 @@ export const EventCreator = defineVaporComponent({
                     </div>
                   ) : (
                     <div class="space-y-2">
-                      {selectedDates.value.map((dateStr, idx) => {
-                        const range = dateRanges.value[dateStr] || {
-                          start: customStartTime.value,
-                          end: customEndTime.value,
-                        }
-                        const daySlots = slots.value.filter((s) => s.slotDate === dateStr)
-
-                        return (
-                          <DateConfigRow
-                            key={dateStr}
-                            dateStr={dateStr}
-                            idx={idx}
-                            start={range.start}
-                            end={range.end}
-                            title={range.title || ''}
-                            slotsCount={daySlots.length}
-                            onUpdate:title={(newTitle: string) => {
-                              const current = dateRanges.value[dateStr] || {
-                                start: customStartTime.value,
-                                end: customEndTime.value,
+                      <VaporFor in={selectedDates.value} getKey={(d: any) => (isRef(d) ? d.value : d)}>
+                        {(item: any, idxRef: any) => {
+                          const dateStr = isRef(item) ? item.value : item
+                          const idx = isRef(idxRef) ? idxRef.value : (idxRef ?? 0)
+                          return (
+                            <DateConfigRow
+                              key={dateStr}
+                              dateStr={dateStr}
+                              idx={idx}
+                              start={dateRanges.value[dateStr]?.start || customStartTime.value}
+                              end={dateRanges.value[dateStr]?.end || customEndTime.value}
+                              title={dateRanges.value[dateStr]?.title || ''}
+                              slotsCount={slots.value.filter((s) => s.slotDate === dateStr).length}
+                              onUpdate:title={(newTitle: string) => {
+                                const current = dateRanges.value[dateStr] || {
+                                  start: customStartTime.value,
+                                  end: customEndTime.value,
+                                }
+                                dateRanges.value = {
+                                  ...dateRanges.value,
+                                  [dateStr]: { ...current, title: newTitle },
+                                }
+                              }}
+                              onUpdate:range={(start: string, end: string) =>
+                                updateSingleDateRange(dateStr, start, end)
                               }
-                              dateRanges.value = {
-                                ...dateRanges.value,
-                                [dateStr]: { ...current, title: newTitle },
-                              }
-                            }}
-                            onUpdate:range={(start: string, end: string) =>
-                              updateSingleDateRange(dateStr, start, end)
-                            }
-                            onToggleDate={() => toggleDate(dateStr)}
-                          />
-                        )
-                      })}
+                              onToggleDate={() => toggleDate(dateStr)}
+                            />
+                          )
+                        }}
+                      </VaporFor>
                     </div>
                   )}
 
