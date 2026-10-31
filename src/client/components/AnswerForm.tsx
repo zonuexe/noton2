@@ -2,7 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import { defineVaporComponent, ref, computed, onMounted, onUnmounted } from 'vue'
+import { defineVaporComponent, ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { useStoredResponse } from '@/client/composables/useStoredResponse'
 import type { AnswerStatus, EventDetail, SubmitResponseInput, User } from '@/shared/types'
 import { TIMELINE_HOURS, formatDateLabel, getSlotsForHour } from '@/shared/time'
 import {
@@ -83,89 +84,92 @@ export const AnswerForm = defineVaporComponent({
     // 刻み幅が30分かどうか
     const is30Min = computed(() => props.event.slotIntervalMinutes === 30)
 
-    const loadOwnResponse = () => {
-      try {
-        if (typeof window === 'undefined') return
-        const stored = localStorage.getItem(`noton2_resp_${props.event.id}`)
-        let loaded = false
-        if (stored) {
-          const parsed = JSON.parse(stored)
-          if (parsed.participantId) {
-            const existing = props.event.participants.find((p) => p.id === parsed.participantId)
-            if (existing) {
-              participantId.value = existing.id
-              editToken.value = parsed.editToken || existing.editToken || null
-              name.value = existing.name
-              comment.value = existing.comment || ''
-              if (existing.answers) {
-                answers.value = { ...existing.answers }
-              }
-              loaded = true
-            }
-          }
-        }
+    const { storedResponse, saveStoredResponse } = useStoredResponse(props.event.id)
 
-        // localStorage になくても、ログインユーザーのアカウントに紐付いた回答があれば自動で読み込む
-        if (!loaded && props.currentUser) {
-          const existingByUser = props.event.participants.find(
-            (p) => p.userId && p.userId === props.currentUser!.id
-          )
-          if (existingByUser) {
-            participantId.value = existingByUser.id
-            editToken.value = existingByUser.editToken || null
-            name.value = existingByUser.name
-            comment.value = existingByUser.comment || ''
-            if (existingByUser.answers) {
-              answers.value = { ...existingByUser.answers }
-            }
-            if (existingByUser.editToken) {
-              localStorage.setItem(
-                `noton2_resp_${props.event.id}`,
-                JSON.stringify({
-                  participantId: existingByUser.id,
-                  editToken: existingByUser.editToken,
-                  name: existingByUser.name,
-                })
-              )
-            }
-          }
-        }
-      } catch (e) {
-        console.error(e)
-      }
-
-      // 未回答スロットのデフォルトを 'available' (◯) に
-      const initial: Record<string, AnswerStatus> = { ...answers.value }
+    const startNewResponse = () => {
+      participantId.value = null
+      editToken.value = null
+      name.value = ''
+      comment.value = ''
+      const next: Record<string, AnswerStatus> = {}
       props.event.slots.forEach((s) => {
-        if (!initial[s.id]) {
-          initial[s.id] = 'available'
-        }
+        next[s.id] = 'available'
       })
-      answers.value = initial
+      answers.value = next
     }
 
-    const handleStorageChange = () => {
-      try {
-        if (typeof window === 'undefined') return
-        const stored = localStorage.getItem(`noton2_resp_${props.event.id}`)
+    const loadOwnResponse = () => {
+      let loaded = false
+      if (storedResponse.value?.participantId) {
+        const existing = props.event.participants.find(
+          (p) => p.id === storedResponse.value?.participantId
+        )
+        if (existing) {
+          participantId.value = existing.id
+          editToken.value = storedResponse.value.editToken || existing.editToken || null
+          name.value = existing.name
+          comment.value = existing.comment || ''
+          if (existing.answers) {
+            answers.value = { ...existing.answers }
+          }
+          loaded = true
+        }
+      }
+
+      // localStorage になくても、ログインユーザーのアカウントに紐付いた回答があれば自動で読み込む
+      if (!loaded && props.currentUser) {
+        const existingByUser = props.event.participants.find(
+          (p) => p.userId && p.userId === props.currentUser!.id
+        )
+        if (existingByUser) {
+          participantId.value = existingByUser.id
+          editToken.value = existingByUser.editToken || null
+          name.value = existingByUser.name
+          comment.value = existingByUser.comment || ''
+          if (existingByUser.answers) {
+            answers.value = { ...existingByUser.answers }
+          }
+          if (existingByUser.editToken) {
+            saveStoredResponse({
+              participantId: existingByUser.id,
+              editToken: existingByUser.editToken,
+              name: existingByUser.name,
+            })
+          }
+          loaded = true
+        }
+      }
+
+      if (!loaded && !participantId.value) {
+        startNewResponse()
+      } else {
+        // 未回答スロットのデフォルトを 'available' (◯) に
+        const initial: Record<string, AnswerStatus> = { ...answers.value }
+        props.event.slots.forEach((s) => {
+          if (!initial[s.id]) {
+            initial[s.id] = 'available'
+          }
+        })
+        answers.value = initial
+      }
+    }
+
+    watch(
+      storedResponse,
+      (stored) => {
         if (!stored) {
           startNewResponse()
         } else {
           loadOwnResponse()
         }
-      } catch (e) {
-        console.error(e)
-      }
-    }
+      },
+      { immediate: true }
+    )
 
-    // 初期マウント時に自分の回答を取得
     onMounted(() => {
-      loadOwnResponse()
-
       // グローバル mouseup でドラッグ終了
       window.addEventListener('mouseup', stopDrag)
       window.addEventListener('touchend', stopDrag)
-      window.addEventListener('noton2-response-changed', handleStorageChange)
     })
 
     const stopDrag = () => {
@@ -175,7 +179,6 @@ export const AnswerForm = defineVaporComponent({
     onUnmounted(() => {
       window.removeEventListener('mouseup', stopDrag)
       window.removeEventListener('touchend', stopDrag)
-      window.removeEventListener('noton2-response-changed', handleStorageChange)
     })
 
     // 全スロットを一括設定
@@ -258,18 +261,14 @@ export const AnswerForm = defineVaporComponent({
         const isNew = !participantId.value
         const wasUnlinked = isUnlinkedExistingResponse.value
 
-        // localStorage に保存
+        // リアクティブストア（localStorage 含む）に保存
         participantId.value = data.participantId
         editToken.value = data.editToken
-        localStorage.setItem(
-          `noton2_resp_${props.event.id}`,
-          JSON.stringify({
-            participantId: data.participantId,
-            editToken: data.editToken,
-            name: name.value.trim(),
-          })
-        )
-        window.dispatchEvent(new CustomEvent('noton2-response-changed'))
+        saveStoredResponse({
+          participantId: data.participantId,
+          editToken: data.editToken,
+          name: name.value.trim(),
+        })
 
         if (isNew) {
           successMessage.value = props.currentUser
@@ -288,18 +287,6 @@ export const AnswerForm = defineVaporComponent({
       } finally {
         isSubmitting.value = false
       }
-    }
-
-    const startNewResponse = () => {
-      participantId.value = null
-      editToken.value = null
-      name.value = ''
-      comment.value = ''
-      const next: Record<string, AnswerStatus> = {}
-      props.event.slots.forEach((s) => {
-        next[s.id] = 'available'
-      })
-      answers.value = next
     }
 
     return (

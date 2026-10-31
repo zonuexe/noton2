@@ -2,7 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import { defineVaporComponent, computed, ref, onMounted, onUnmounted } from 'vue'
+import { defineVaporComponent, computed, ref } from 'vue'
+import { useStoredResponse } from '@/client/composables/useStoredResponse'
 import type { AnswerStatus, EventDetail, User } from '@/shared/types'
 import {
   TIMELINE_HOURS,
@@ -34,26 +35,7 @@ export const MatrixTable = defineVaporComponent({
   },
   setup(props) {
     const isDeleting = ref(false)
-    const storedResponse = ref<{ participantId?: string; editToken?: string; name?: string } | null>(null)
-
-    const syncStoredResponse = () => {
-      try {
-        if (typeof window === 'undefined') return
-        const stored = localStorage.getItem(`noton2_resp_${props.event.id}`)
-        storedResponse.value = stored ? JSON.parse(stored) : null
-      } catch (e) {
-        storedResponse.value = null
-      }
-    }
-
-    onMounted(() => {
-      syncStoredResponse()
-      window.addEventListener('noton2-response-changed', syncStoredResponse)
-    })
-
-    onUnmounted(() => {
-      window.removeEventListener('noton2-response-changed', syncStoredResponse)
-    })
+    const { storedResponse, clearStoredResponse } = useStoredResponse(props.event.id)
 
     // ユニーク日付一覧
     const uniqueDates = computed(() => {
@@ -95,9 +77,7 @@ export const MatrixTable = defineVaporComponent({
         }
 
         if (isMe) {
-          localStorage.removeItem(`noton2_resp_${props.event.id}`)
-          storedResponse.value = null
-          window.dispatchEvent(new CustomEvent('noton2-response-changed'))
+          clearStoredResponse()
         }
 
         props.onReload()
