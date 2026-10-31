@@ -446,8 +446,7 @@ ${shareUrl}
                 <label class="block text-xs font-bold text-stone-700 mb-1">追加する日付</label>
                 <input
                   type="date"
-                  value={newSlotDate.value}
-                  onChange={(e: any) => (newSlotDate.value = e.target.value)}
+                  v-model={newSlotDate.value}
                   class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-xs outline-none"
                 />
               </div>
@@ -466,8 +465,7 @@ ${shareUrl}
                 <label class="block text-xs font-bold text-stone-700 mb-1">開始時刻</label>
                 <input
                   type="time"
-                  value={newStartTime.value}
-                  onChange={(e: any) => (newStartTime.value = e.target.value)}
+                  v-model={newStartTime.value}
                   class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-xs outline-none"
                 />
               </div>
@@ -476,8 +474,7 @@ ${shareUrl}
                 <label class="block text-xs font-bold text-stone-700 mb-1">終了時刻</label>
                 <input
                   type="time"
-                  value={newEndTime.value}
-                  onChange={(e: any) => (newEndTime.value = e.target.value)}
+                  v-model={newEndTime.value}
                   class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-xs outline-none"
                 />
               </div>
@@ -543,8 +540,7 @@ ${shareUrl}
               <div>
                 <label class="block text-xs font-bold text-stone-700 mb-1">予定時間 / 所要時間</label>
                 <select
-                  value={editDuration.value}
-                  onChange={(e: any) => (editDuration.value = Number(e.target.value))}
+                  v-model={editDuration.value}
                   class="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs outline-none bg-white font-medium"
                 >
                   <option value={30}>30分</option>

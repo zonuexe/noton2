@@ -32,6 +32,14 @@ const DateConfigRow = defineVaporComponent({
       get: () => props.title,
       set: (val: string) => emit('update:title', val),
     })
+    const startModel = computed({
+      get: () => props.start,
+      set: (val: string) => emit('update:range', val, props.end),
+    })
+    const endModel = computed({
+      get: () => props.end,
+      set: (val: string) => emit('update:range', props.start, val),
+    })
 
     return (
       <div
@@ -62,16 +70,14 @@ const DateConfigRow = defineVaporComponent({
             <input
               type="time"
               aria-label={`${formatDateLabel(props.dateStr)}の開始時刻`}
-              value={props.start}
-              onChange={(e: any) => emit('update:range', e.target.value, props.end)}
+              v-model={startModel.value}
               class="bg-white border border-stone-300 focus:border-rose-400 rounded-lg px-2.5 py-1 text-xs font-mono font-bold text-stone-800 outline-none"
             />
             <span class="text-xs text-stone-400 font-bold">〜</span>
             <input
               type="time"
               aria-label={`${formatDateLabel(props.dateStr)}の終了時刻`}
-              value={props.end}
-              onChange={(e: any) => emit('update:range', props.start, e.target.value)}
+              v-model={endModel.value}
               class="bg-white border border-stone-300 focus:border-rose-400 rounded-lg px-2.5 py-1 text-xs font-mono font-bold text-stone-800 outline-none"
             />
             <button
@@ -789,8 +795,7 @@ export const EventCreator = defineVaporComponent({
                         予定時間 / 所要時間
                       </label>
                       <select
-                        value={durationMinutes.value}
-                        onChange={(e: any) => (durationMinutes.value = Number(e.target.value))}
+                        v-model={durationMinutes.value}
                         class="w-full border border-stone-200 focus:border-rose-400 focus:ring-2 focus:ring-rose-200 rounded-xl px-3 py-2.5 text-sm transition outline-none bg-white font-medium"
                       >
                         <option value={30}>30分</option>
@@ -967,15 +972,13 @@ export const EventCreator = defineVaporComponent({
                     <span class="text-xs font-bold text-stone-600">カスタム時間:</span>
                     <input
                       type="time"
-                      value={customStartTime.value}
-                      onChange={(e: any) => (customStartTime.value = e.target.value)}
+                      v-model={customStartTime.value}
                       class="bg-white border border-stone-300 rounded-lg px-2 py-1 text-xs outline-none font-mono"
                     />
                     <span class="text-xs text-stone-400">〜</span>
                     <input
                       type="time"
-                      value={customEndTime.value}
-                      onChange={(e: any) => (customEndTime.value = e.target.value)}
+                      v-model={customEndTime.value}
                       class="bg-white border border-stone-300 rounded-lg px-2 py-1 text-xs outline-none font-mono"
                     />
                     <button
