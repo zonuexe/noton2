@@ -457,8 +457,7 @@ ${shareUrl}
                 <input
                   type="text"
                   placeholder="例: DAY 0、前夜祭"
-                  value={newDateTitle.value}
-                  onInput={(e: any) => (newDateTitle.value = e.target.value)}
+                  v-model={newDateTitle.value}
                   class="w-full bg-stone-50 border border-stone-300 rounded-xl px-3 py-2 text-xs outline-none font-medium"
                 />
               </div>
@@ -527,8 +526,7 @@ ${shareUrl}
                 <label class="block text-xs font-bold text-stone-700 mb-1">イベント名</label>
                 <input
                   type="text"
-                  value={editTitle.value}
-                  onInput={(e: any) => (editTitle.value = e.target.value)}
+                  v-model={editTitle.value}
                   class="w-full border border-stone-300 rounded-xl px-3 py-2 text-sm outline-none font-medium"
                 />
               </div>
@@ -537,8 +535,7 @@ ${shareUrl}
                 <label class="block text-xs font-bold text-stone-700 mb-1">主催者名</label>
                 <input
                   type="text"
-                  value={editOrganizerName.value}
-                  onInput={(e: any) => (editOrganizerName.value = e.target.value)}
+                  v-model={editOrganizerName.value}
                   class="w-full border border-stone-300 rounded-xl px-3 py-2 text-sm outline-none font-medium"
                 />
               </div>
@@ -562,8 +559,7 @@ ${shareUrl}
                 <label class="block text-xs font-bold text-stone-700 mb-1">説明・補足</label>
                 <textarea
                   rows={2}
-                  value={editDescription.value}
-                  onInput={(e: any) => (editDescription.value = e.target.value)}
+                  v-model={editDescription.value}
                   class="w-full border border-stone-300 rounded-xl px-3 py-2 text-xs outline-none font-medium"
                 />
               </div>

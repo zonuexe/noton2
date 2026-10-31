@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import { defineVaporComponent, ref, computed } from 'vue'
+import { defineVaporComponent, ref, computed, watch } from 'vue'
 import type { CreateEventInput, User } from '@/shared/types'
 import {
   TIME_PRESETS,
@@ -15,6 +15,113 @@ import {
   isValidSlotTimeRange,
   sanitizeHttpUrl,
 } from '@/shared/time'
+
+const DateConfigRow = defineVaporComponent({
+  props: {
+    dateStr: { type: String, required: true },
+    idx: { type: Number, required: true },
+    start: { type: String, required: true },
+    end: { type: String, required: true },
+    title: { type: String, default: '' },
+    slotsCount: { type: Number, default: 0 },
+  },
+  emits: ['update:title', 'update:range', 'toggleDate'],
+  setup(props, { emit }) {
+    const titleModel = computed({
+      get: () => props.title,
+      set: (val: string) => emit('update:title', val),
+    })
+
+    return (
+      <div
+        data-testid={`date-row-${props.dateStr}`}
+        class="bg-rose-50/40 border border-rose-200/80 rounded-2xl p-3 flex flex-col gap-2.5 transition hover:border-rose-300"
+      >
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          {/* 日付ラベル */}
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="px-2 py-0.5 bg-rose-100 text-rose-700 rounded-md text-[11px] font-extrabold">
+              {props.idx + 1}日目
+            </span>
+            {props.title ? (
+              <span class="px-2 py-0.5 bg-rose-500 text-white rounded text-[11px] font-extrabold shadow-2xs">
+                {props.title}
+              </span>
+            ) : null}
+            <span class="font-bold text-sm text-stone-900 font-['M_PLUS_Rounded_1c']">
+              {formatDateLabel(props.dateStr)}
+            </span>
+            <span class="text-[11px] text-stone-500 font-bold bg-white px-2 py-0.5 rounded-full border border-stone-200">
+              {props.slotsCount}コマ
+            </span>
+          </div>
+
+          {/* 開始〜終了時刻の個別指定 & 日付削除 */}
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <input
+              type="time"
+              aria-label={`${formatDateLabel(props.dateStr)}の開始時刻`}
+              value={props.start}
+              onChange={(e: any) => emit('update:range', e.target.value, props.end)}
+              class="bg-white border border-stone-300 focus:border-rose-400 rounded-lg px-2.5 py-1 text-xs font-mono font-bold text-stone-800 outline-none"
+            />
+            <span class="text-xs text-stone-400 font-bold">〜</span>
+            <input
+              type="time"
+              aria-label={`${formatDateLabel(props.dateStr)}の終了時刻`}
+              value={props.end}
+              onChange={(e: any) => emit('update:range', props.start, e.target.value)}
+              class="bg-white border border-stone-300 focus:border-rose-400 rounded-lg px-2.5 py-1 text-xs font-mono font-bold text-stone-800 outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => emit('toggleDate', props.dateStr)}
+              class="ml-1 text-xs text-stone-400 hover:text-rose-600 font-bold px-2 py-1 rounded-lg hover:bg-rose-100/60 transition cursor-pointer"
+              title="この候補日を削除"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+
+        {/* 日程名（名前付け）入力 */}
+        <div class="flex items-center gap-1.5 pt-1 border-t border-rose-200/50">
+          <span class="text-[11px] font-bold text-stone-600 shrink-0">日程名:</span>
+          <input
+            type="text"
+            placeholder="例: DAY 0、前夜祭、会場撤収（任意）"
+            aria-label={`${formatDateLabel(props.dateStr)}の日程名`}
+            v-model={titleModel.value}
+            class="w-full max-w-xs bg-white border border-stone-300 focus:border-rose-400 rounded-lg px-2.5 py-1 text-xs text-stone-800 outline-none font-medium"
+          />
+        </div>
+
+        {/* 日ごとのクイックプリセットボタン */}
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <span class="text-[11px] text-stone-400 font-bold mr-0.5">この日を:</span>
+          {TIME_PRESETS.map((preset) => {
+            const isCurrent = props.start === preset.start && props.end === preset.end
+            return (
+              <button
+                key={`${props.dateStr}-${preset.key}`}
+                type="button"
+                onClick={() => emit('update:range', preset.start, preset.end)}
+                class={`px-2 py-0.5 text-[11px] rounded-md font-bold transition cursor-pointer border ${
+                  isCurrent
+                    ? 'bg-rose-500 text-white border-rose-500'
+                    : 'bg-white text-stone-600 border-stone-200 hover:border-rose-300 hover:text-rose-700'
+                }`}
+                title={preset.label}
+              >
+                {preset.shortLabel}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    )
+  },
+})
 
 export const EventCreator = defineVaporComponent({
   props: {
@@ -204,21 +311,25 @@ export const EventCreator = defineVaporComponent({
       }
     }
 
-    // 特定日の日程名（例: DAY 0, 前夜祭, 会場撤収）を変更
-    const updateDateTitle = (dateStr: string, title: string) => {
-      const current = dateRanges.value[dateStr] || {
-        start: customStartTime.value,
-        end: customEndTime.value,
-      }
-      dateRanges.value = {
-        ...dateRanges.value,
-        [dateStr]: { ...current, title },
-      }
-      const trimmed = title.trim() || null
-      slots.value = slots.value.map((s) =>
-        s.slotDate === dateStr ? { ...s, dateTitle: trimmed } : s
-      )
-    }
+    // 日程名（dateRanges 内の title）が更新されたらスロットの dateTitle も自動同期
+    watch(
+      dateRanges,
+      (ranges) => {
+        let changed = false
+        const nextSlots = slots.value.map((s) => {
+          const expectedTitle = ranges[s.slotDate]?.title?.trim() || null
+          if (s.dateTitle !== expectedTitle) {
+            changed = true
+            return { ...s, dateTitle: expectedTitle }
+          }
+          return s
+        })
+        if (changed) {
+          slots.value = nextSlots
+        }
+      },
+      { deep: true }
+    )
 
     // 特定日の時間帯（開始〜終了）を個別に変更
     const updateSingleDateRange = (dateStr: string, start: string, end: string) => {
@@ -654,8 +765,7 @@ export const EventCreator = defineVaporComponent({
                     <input
                       type="text"
                       placeholder="例: プロジェクト定例MTG、同期飲み会、ランチ会"
-                      value={title.value}
-                      onInput={(e: any) => (title.value = e.target.value)}
+                      v-model={title.value}
                       class="w-full border border-stone-200 focus:border-rose-400 focus:ring-2 focus:ring-rose-200 rounded-xl px-4 py-2.5 text-sm transition outline-none"
                     />
                   </div>
@@ -668,8 +778,7 @@ export const EventCreator = defineVaporComponent({
                       <input
                         type="text"
                         placeholder="例: 山田太郎、幹事、ニックネーム"
-                        value={organizerName.value}
-                        onInput={(e: any) => (organizerName.value = e.target.value)}
+                        v-model={organizerName.value}
                         class="w-full border border-stone-200 focus:border-rose-400 focus:ring-2 focus:ring-rose-200 rounded-xl px-4 py-2.5 text-sm transition outline-none"
                       />
                     </div>
@@ -699,8 +808,7 @@ export const EventCreator = defineVaporComponent({
                     <textarea
                       rows={2}
                       placeholder="例: オンライン（Google Meet / Zoom）で開催予定です。議題: ○○○"
-                      value={description.value}
-                      onInput={(e: any) => (description.value = e.target.value)}
+                      v-model={description.value}
                       class="w-full border border-stone-200 focus:border-rose-400 focus:ring-2 focus:ring-rose-200 rounded-xl px-4 py-2.5 text-sm transition outline-none"
                     />
                   </div>
@@ -920,103 +1028,29 @@ export const EventCreator = defineVaporComponent({
                         const daySlots = slots.value.filter((s) => s.slotDate === dateStr)
 
                         return (
-                          <div
+                          <DateConfigRow
                             key={dateStr}
-                            data-testid={`date-row-${dateStr}`}
-                            class="bg-rose-50/40 border border-rose-200/80 rounded-2xl p-3 flex flex-col gap-2.5 transition hover:border-rose-300"
-                          >
-                            <div class="flex flex-wrap items-center justify-between gap-2">
-                              {/* 日付ラベル */}
-                              <div class="flex items-center gap-2 flex-wrap">
-                                <span class="px-2 py-0.5 bg-rose-100 text-rose-700 rounded-md text-[11px] font-extrabold">
-                                  {idx + 1}日目
-                                </span>
-                                {range.title ? (
-                                  <span class="px-2 py-0.5 bg-rose-500 text-white rounded text-[11px] font-extrabold shadow-2xs">
-                                    {range.title}
-                                  </span>
-                                ) : null}
-                                <span class="font-bold text-sm text-stone-900 font-['M_PLUS_Rounded_1c']">
-                                  {formatDateLabel(dateStr)}
-                                </span>
-                                <span class="text-[11px] text-stone-500 font-bold bg-white px-2 py-0.5 rounded-full border border-stone-200">
-                                  {daySlots.length}コマ
-                                </span>
-                              </div>
-
-                              {/* 開始〜終了時刻の個別指定 & 日付削除 */}
-                              <div class="flex items-center gap-1.5 flex-wrap">
-                                <input
-                                  type="time"
-                                  aria-label={`${formatDateLabel(dateStr)}の開始時刻`}
-                                  value={range.start}
-                                  onChange={(e: any) =>
-                                    updateSingleDateRange(dateStr, e.target.value, range.end)
-                                  }
-                                  class="bg-white border border-stone-300 focus:border-rose-400 rounded-lg px-2.5 py-1 text-xs font-mono font-bold text-stone-800 outline-none"
-                                />
-                                <span class="text-xs text-stone-400 font-bold">〜</span>
-                                <input
-                                  type="time"
-                                  aria-label={`${formatDateLabel(dateStr)}の終了時刻`}
-                                  value={range.end}
-                                  onChange={(e: any) =>
-                                    updateSingleDateRange(dateStr, range.start, e.target.value)
-                                  }
-                                  class="bg-white border border-stone-300 focus:border-rose-400 rounded-lg px-2.5 py-1 text-xs font-mono font-bold text-stone-800 outline-none"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => toggleDate(dateStr)}
-                                  class="ml-1 text-xs text-stone-400 hover:text-rose-600 font-bold px-2 py-1 rounded-lg hover:bg-rose-100/60 transition cursor-pointer"
-                                  title="この候補日を削除"
-                                >
-                                  ✕
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* 日程名（名前付け）入力 */}
-                            <div class="flex items-center gap-1.5 pt-1 border-t border-rose-200/50">
-                              <span class="text-[11px] font-bold text-stone-600 shrink-0">日程名:</span>
-                              <input
-                                type="text"
-                                placeholder="例: DAY 0、前夜祭、会場撤収（任意）"
-                                aria-label={`${formatDateLabel(dateStr)}の日程名`}
-                                value={range.title || ''}
-                                onInput={(e: any) => updateDateTitle(dateStr, e.target.value)}
-                                class="w-full max-w-xs bg-white border border-stone-300 focus:border-rose-400 rounded-lg px-2.5 py-1 text-xs text-stone-800 outline-none font-medium"
-                              />
-                            </div>
-
-                            {/* 日ごとのクイックプリセットボタン */}
-                            <div class="flex items-center gap-1.5 flex-wrap">
-                              <span class="text-[11px] text-stone-400 font-bold mr-0.5">
-                                この日を:
-                              </span>
-                              {TIME_PRESETS.map((preset) => {
-                                const isCurrent =
-                                  range.start === preset.start && range.end === preset.end
-                                return (
-                                  <button
-                                    key={`${dateStr}-${preset.key}`}
-                                    type="button"
-                                    onClick={() =>
-                                      updateSingleDateRange(dateStr, preset.start, preset.end)
-                                    }
-                                    class={`px-2 py-0.5 text-[11px] rounded-md font-bold transition cursor-pointer border ${
-                                      isCurrent
-                                        ? 'bg-rose-500 text-white border-rose-500'
-                                        : 'bg-white text-stone-600 border-stone-200 hover:border-rose-300 hover:text-rose-700'
-                                    }`}
-                                    title={preset.label}
-                                  >
-                                    {preset.shortLabel}
-                                  </button>
-                                )
-                              })}
-                            </div>
-                          </div>
+                            dateStr={dateStr}
+                            idx={idx}
+                            start={range.start}
+                            end={range.end}
+                            title={range.title || ''}
+                            slotsCount={daySlots.length}
+                            onUpdate:title={(newTitle: string) => {
+                              const current = dateRanges.value[dateStr] || {
+                                start: customStartTime.value,
+                                end: customEndTime.value,
+                              }
+                              dateRanges.value = {
+                                ...dateRanges.value,
+                                [dateStr]: { ...current, title: newTitle },
+                              }
+                            }}
+                            onUpdate:range={(start: string, end: string) =>
+                              updateSingleDateRange(dateStr, start, end)
+                            }
+                            onToggleDate={() => toggleDate(dateStr)}
+                          />
                         )
                       })}
                     </div>
