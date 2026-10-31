@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import { defineVaporComponent, ref } from 'vue'
+import { defineVaporComponent, ref, watch } from 'vue'
 import type { EventDetail } from '@/shared/types'
 import {
   TIME_PRESETS,
@@ -56,6 +56,13 @@ export const AdminControls = defineVaporComponent({
       editDuration.value = props.event.durationMinutes
       editOrganizerName.value = props.event.organizerName
     }
+
+    watch(
+      () => props.event,
+      () => {
+        syncEditForm()
+      }
+    )
 
     // 日程確定 / 解除
     const handleConfirmSlot = async (slotId: string | null) => {
