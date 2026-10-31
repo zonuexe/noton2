@@ -13,6 +13,50 @@ import {
   bulkUpdateAnswers,
 } from '@/shared/state'
 
+const AnswerSlotCell = defineVaporComponent({
+  props: {
+    slotId: { type: String, required: true },
+    startTime: { type: String, required: true },
+    endTime: { type: String, required: true },
+    status: { type: String as () => AnswerStatus, default: 'available' },
+    cellWidthClass: { type: String, default: 'w-[28px] sm:w-[32px]' },
+  },
+  emits: ['slotMouseDown', 'slotMouseEnter'],
+  setup(props, { emit }) {
+    const symbol = computed(() => {
+      if (props.status === 'maybe') return '▲'
+      if (props.status === 'unavailable') return '×'
+      return '•'
+    })
+
+    const title = computed(() => {
+      if (props.status === 'maybe') return `${props.startTime}〜${props.endTime} △（未定）`
+      if (props.status === 'unavailable') return `${props.startTime}〜${props.endTime} ✕（不可）`
+      return `${props.startTime}〜${props.endTime} ◯（参加可能）`
+    })
+
+    const cellClass = computed(() => {
+      if (props.status === 'maybe') return 'bg-[#f5a623] text-white font-bold hover:bg-amber-500'
+      if (props.status === 'unavailable')
+        return 'bg-[#d4d4d4] text-stone-600 font-bold hover:bg-stone-400 hover:text-white'
+      return 'bg-[#58b4ff] text-white font-bold hover:bg-sky-500'
+    })
+
+    return (
+      <div
+        data-slot-id={props.slotId}
+        onMousedown={() => emit('slotMouseDown', props.slotId)}
+        onMouseenter={() => emit('slotMouseEnter', props.slotId)}
+        onTouchstart={() => emit('slotMouseDown', props.slotId)}
+        class={`${props.cellWidthClass} h-full flex items-center justify-center text-xs select-none border-r border-white/40 transition cursor-pointer active:scale-95 ${cellClass.value}`}
+        title={title.value}
+      >
+        <span>{symbol.value}</span>
+      </div>
+    )
+  },
+})
+
 export const AnswerForm = defineVaporComponent({
   props: {
     event: {
@@ -574,38 +618,18 @@ export const AnswerForm = defineVaporComponent({
 
                         return (
                           <div key={hour} class="flex h-full">
-                            {slotsInHour.map((slot) => {
-                              const status = answers.value[slot.id] || 'available'
-
-                              let cellClass = 'bg-[#58b4ff] text-white font-bold hover:bg-sky-500'
-                              let symbol = '•'
-                              let title = `${slot.startTime}〜${slot.endTime} ◯（参加可能）`
-
-                              if (status === 'maybe') {
-                                cellClass = 'bg-[#f5a623] text-white font-bold hover:bg-amber-500'
-                                symbol = '▲'
-                                title = `${slot.startTime}〜${slot.endTime} △（未定）`
-                              } else if (status === 'unavailable') {
-                                cellClass =
-                                  'bg-[#d4d4d4] text-stone-600 font-bold hover:bg-stone-400 hover:text-white'
-                                symbol = '×'
-                                title = `${slot.startTime}〜${slot.endTime} ✕（不可）`
-                              }
-
-                              return (
-                                <div
-                                  key={slot.id}
-                                  data-slot-id={slot.id}
-                                  onMousedown={() => handleMouseDown(slot.id)}
-                                  onMouseenter={() => handleMouseEnter(slot.id)}
-                                  onTouchstart={() => handleMouseDown(slot.id)}
-                                  class={`${cellWidthClass} h-full flex items-center justify-center text-xs select-none border-r border-white/40 transition cursor-pointer active:scale-95 ${cellClass}`}
-                                  title={title}
-                                >
-                                  <span>{symbol}</span>
-                                </div>
-                              )
-                            })}
+                            {slotsInHour.map((slot) => (
+                              <AnswerSlotCell
+                                key={slot.id}
+                                slotId={slot.id}
+                                startTime={slot.startTime}
+                                endTime={slot.endTime}
+                                status={answers.value[slot.id] || 'available'}
+                                cellWidthClass={cellWidthClass}
+                                onSlotMouseDown={handleMouseDown}
+                                onSlotMouseEnter={handleMouseEnter}
+                              />
+                            ))}
                           </div>
                         )
                       })}
