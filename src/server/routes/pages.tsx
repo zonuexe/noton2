@@ -22,7 +22,20 @@ export const pages = new Hono<{
 // トップページ
 pages.get('/', (c) => {
   return c.render(
-    <article class="flex flex-col items-center text-center space-y-8 py-6 md:py-12">
+    <article
+      class="flex flex-col items-center text-center space-y-8 py-6 md:py-12"
+      vocab="https://schema.org/"
+      typeof="WebApplication"
+    >
+      <meta property="name" content="noton2" />
+      <meta property="applicationCategory" content="BusinessApplication" />
+      <meta property="operatingSystem" content="All" />
+      <meta property="browserRequirements" content="Requires JavaScript and HTML5 support" />
+      <div property="offers" typeof="Offer" class="hidden">
+        <meta property="price" content="0" />
+        <meta property="priceCurrency" content="JPY" />
+      </div>
+
       <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-rose-100 text-rose-700 text-sm font-semibold animate-pulse">
         <span>🐷</span> 登録不要ですぐ使える日程調整
       </div>
@@ -35,7 +48,7 @@ pages.get('/', (c) => {
             トントン拍子にサクッと調整
           </span>
         </h1>
-        <p class="text-stone-600 text-base md:text-lg leading-relaxed">
+        <p class="text-stone-600 text-base md:text-lg leading-relaxed" property="description">
           回答者は面倒な会員登録やログインは一切不要。
           <br class="hidden sm:inline" />
           主催者のGitHub身元確認付きで安心。カレンダーから時間枠を選ぶだけで直感的に日程を調整できます。
@@ -142,13 +155,18 @@ pages.get('/mypage', async (c) => {
   return c.render(
     <div class="space-y-8 max-w-4xl mx-auto py-2">
       {/* ユーザーヘッダー */}
-      <header class="h-card bg-white rounded-2xl border border-rose-100 shadow-sm p-5 md:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <header
+        class="h-card bg-white rounded-2xl border border-rose-100 shadow-sm p-5 md:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+        vocab="https://schema.org/"
+        typeof="Person"
+      >
         <div class="flex items-center gap-4">
           {safeAvatarUrl ? (
             <img
               src={safeAvatarUrl}
               alt={user.username}
               class="u-photo w-14 h-14 rounded-full border-2 border-rose-200 shadow-sm"
+              property="image"
             />
           ) : (
             <div class="w-14 h-14 rounded-full bg-rose-100 border-2 border-rose-200 flex items-center justify-center text-2xl" aria-hidden="true">
@@ -157,7 +175,7 @@ pages.get('/mypage', async (c) => {
           )}
           <div>
             <div class="flex items-center gap-2">
-              <h1 class="p-name text-xl font-bold text-stone-900 font-['M_PLUS_Rounded_1c']">
+              <h1 class="p-name text-xl font-bold text-stone-900 font-['M_PLUS_Rounded_1c']" property="name">
                 {user.displayName || user.username}
               </h1>
               <a
@@ -166,8 +184,9 @@ pages.get('/mypage', async (c) => {
                 rel="author external"
                 class="u-url p-nickname text-xs text-rose-600 hover:text-rose-700 hover:underline font-mono"
                 title="GitHubプロフィールを開く"
+                property="url"
               >
-                @{user.username} ↗
+                <span property="alternateName">@{user.username}</span> ↗
               </a>
             </div>
             <p class="text-xs text-stone-500 mt-1 flex items-center gap-3">
@@ -237,7 +256,13 @@ pages.get('/mypage', async (c) => {
                 <article
                   key={ev.id}
                   class="h-event bg-white rounded-2xl border border-rose-100 shadow-sm hover:shadow-md transition-shadow p-5 flex flex-col md:flex-row md:items-center justify-between gap-4"
+                  vocab="https://schema.org/"
+                  typeof="Event"
                 >
+                  <meta
+                    property="eventStatus"
+                    content={isConfirmed ? 'https://schema.org/EventScheduled' : 'https://schema.org/EventPostponed'}
+                  />
                   <div class="space-y-2 flex-1 min-w-0">
                     <div class="flex flex-wrap items-center gap-2">
                       {isConfirmed ? (
@@ -250,8 +275,8 @@ pages.get('/mypage', async (c) => {
                         </span>
                       )}
                       <h3 class="text-base font-bold text-stone-900 truncate">
-                        <a href={`/events/${ev.id}`} class="p-name u-url hover:text-rose-600 transition-colors">
-                          {ev.title}
+                        <a href={`/events/${ev.id}`} class="p-name u-url hover:text-rose-600 transition-colors" property="url">
+                          <span property="name">{ev.title}</span>
                         </a>
                       </h3>
                     </div>
@@ -259,18 +284,18 @@ pages.get('/mypage', async (c) => {
                     {isConfirmed && ev.confirmedSlotDate && (
                       <div class="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100 inline-block">
                         {ev.confirmedDateTitle && <span class="p-category mr-1">【{ev.confirmedDateTitle}】</span>}
-                        <time class="dt-start" datetime={`${ev.confirmedSlotDate}T${ev.confirmedStartTime}`}>
+                        <time class="dt-start" property="startDate" datetime={`${ev.confirmedSlotDate}T${ev.confirmedStartTime}`}>
                           {formatDateLabel(ev.confirmedSlotDate)} {ev.confirmedStartTime}
                         </time>
                         <span>〜</span>
-                        <time class="dt-end" datetime={`${ev.confirmedSlotDate}T${ev.confirmedEndTime}`}>
+                        <time class="dt-end" property="endDate" datetime={`${ev.confirmedSlotDate}T${ev.confirmedEndTime}`}>
                           {ev.confirmedEndTime}
                         </time>
                       </div>
                     )}
 
                     {ev.description && (
-                      <p class="p-summary text-xs text-stone-600 line-clamp-1">{ev.description}</p>
+                      <p class="p-summary text-xs text-stone-600 line-clamp-1" property="description">{ev.description}</p>
                     )}
 
                     <div class="flex flex-wrap items-center gap-3 text-xs text-stone-500 pt-1">
@@ -340,7 +365,13 @@ pages.get('/mypage', async (c) => {
                 <article
                   key={`${ev.id}-${ev.participantId}`}
                   class="h-event bg-white rounded-2xl border border-stone-200 shadow-xs hover:shadow-md transition-shadow p-5 flex flex-col md:flex-row md:items-center justify-between gap-4"
+                  vocab="https://schema.org/"
+                  typeof="Event"
                 >
+                  <meta
+                    property="eventStatus"
+                    content={isConfirmed ? 'https://schema.org/EventScheduled' : 'https://schema.org/EventPostponed'}
+                  />
                   <div class="space-y-2 flex-1 min-w-0">
                     <div class="flex flex-wrap items-center gap-2">
                       {isConfirmed ? (
@@ -353,8 +384,8 @@ pages.get('/mypage', async (c) => {
                         </span>
                       )}
                       <h3 class="text-base font-bold text-stone-900 truncate">
-                        <a href={`/events/${ev.id}`} class="p-name u-url hover:text-rose-600 transition-colors">
-                          {ev.title}
+                        <a href={`/events/${ev.id}`} class="p-name u-url hover:text-rose-600 transition-colors" property="url">
+                          <span property="name">{ev.title}</span>
                         </a>
                       </h3>
                     </div>
@@ -362,11 +393,11 @@ pages.get('/mypage', async (c) => {
                     {isConfirmed && ev.confirmedSlotDate && (
                       <div class="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100 inline-block">
                         {ev.confirmedDateTitle && <span class="p-category mr-1">【{ev.confirmedDateTitle}】</span>}
-                        <time class="dt-start" datetime={`${ev.confirmedSlotDate}T${ev.confirmedStartTime}`}>
+                        <time class="dt-start" property="startDate" datetime={`${ev.confirmedSlotDate}T${ev.confirmedStartTime}`}>
                           {formatDateLabel(ev.confirmedSlotDate)} {ev.confirmedStartTime}
                         </time>
                         <span>〜</span>
-                        <time class="dt-end" datetime={`${ev.confirmedSlotDate}T${ev.confirmedEndTime}`}>
+                        <time class="dt-end" property="endDate" datetime={`${ev.confirmedSlotDate}T${ev.confirmedEndTime}`}>
                           {ev.confirmedEndTime}
                         </time>
                       </div>
@@ -377,8 +408,8 @@ pages.get('/mypage', async (c) => {
                         回答名: <strong class="text-stone-700">{ev.participantName}</strong>
                       </span>
                       <span>•</span>
-                      <span>
-                        主催者: <strong class="text-stone-700">{ev.organizerName}</strong>
+                      <span property="organizer" typeof="Person">
+                        主催者: <strong class="text-stone-700" property="name">{ev.organizerName}</strong>
                       </span>
                       {respondedDateFormatted && (
                         <>
@@ -784,14 +815,34 @@ pages.get('/events/:id', async (c) => {
 // 利用規約ページ
 pages.get('/terms', (c) => {
   return c.render(
-    <article class="max-w-3xl mx-auto space-y-6 py-4 md:py-8">
+    <article
+      class="max-w-3xl mx-auto space-y-4 py-4 md:py-8"
+      vocab="https://schema.org/"
+      typeof="DigitalDocument"
+    >
+      <nav aria-label="パンくずリスト" class="text-xs text-stone-500" typeof="BreadcrumbList">
+        <ol class="flex items-center gap-1.5">
+          <li property="itemListElement" typeof="ListItem">
+            <a href="/" rel="home" class="hover:text-rose-600 hover:underline" property="item" typeof="WebPage">
+              <span property="name">ホーム</span>
+            </a>
+            <meta property="position" content="1" />
+          </li>
+          <li aria-hidden="true">›</li>
+          <li property="itemListElement" typeof="ListItem">
+            <span property="name" class="text-stone-700 font-medium">利用規約</span>
+            <meta property="position" content="2" />
+          </li>
+        </ol>
+      </nav>
+
       <div class="bg-white rounded-3xl p-6 sm:p-8 md:p-10 border border-rose-100 shadow-md space-y-8 text-stone-700 leading-relaxed">
         <header class="border-b border-rose-100 pb-4">
-          <h1 class="text-2xl sm:text-3xl font-extrabold text-stone-900 font-['M_PLUS_Rounded_1c']">
+          <h1 class="text-2xl sm:text-3xl font-extrabold text-stone-900 font-['M_PLUS_Rounded_1c']" property="name">
             利用規約
           </h1>
           <p class="text-xs text-stone-400 mt-1">
-            最終更新日: <time datetime="2026-10-29">2026年10月29日</time>
+            最終更新日: <time datetime="2026-10-29" property="dateModified">2026年10月29日</time>
           </p>
         </header>
 
@@ -892,14 +943,34 @@ pages.get('/terms', (c) => {
 // プライバシーポリシーページ
 pages.get('/privacy', (c) => {
   return c.render(
-    <article class="max-w-3xl mx-auto space-y-6 py-4 md:py-8">
+    <article
+      class="max-w-3xl mx-auto space-y-4 py-4 md:py-8"
+      vocab="https://schema.org/"
+      typeof="DigitalDocument"
+    >
+      <nav aria-label="パンくずリスト" class="text-xs text-stone-500" typeof="BreadcrumbList">
+        <ol class="flex items-center gap-1.5">
+          <li property="itemListElement" typeof="ListItem">
+            <a href="/" rel="home" class="hover:text-rose-600 hover:underline" property="item" typeof="WebPage">
+              <span property="name">ホーム</span>
+            </a>
+            <meta property="position" content="1" />
+          </li>
+          <li aria-hidden="true">›</li>
+          <li property="itemListElement" typeof="ListItem">
+            <span property="name" class="text-stone-700 font-medium">プライバシーポリシー</span>
+            <meta property="position" content="2" />
+          </li>
+        </ol>
+      </nav>
+
       <div class="bg-white rounded-3xl p-6 sm:p-8 md:p-10 border border-rose-100 shadow-md space-y-8 text-stone-700 leading-relaxed">
         <header class="border-b border-rose-100 pb-4">
-          <h1 class="text-2xl sm:text-3xl font-extrabold text-stone-900 font-['M_PLUS_Rounded_1c']">
+          <h1 class="text-2xl sm:text-3xl font-extrabold text-stone-900 font-['M_PLUS_Rounded_1c']" property="name">
             プライバシーポリシー
           </h1>
           <p class="text-xs text-stone-400 mt-1">
-            最終更新日: <time datetime="2026-10-29">2026年10月29日</time>
+            最終更新日: <time datetime="2026-10-29" property="dateModified">2026年10月29日</time>
           </p>
         </header>
 

@@ -22,3 +22,10 @@ Vue Vapor mode や JSX において、日本語 IME 入力（未確定文字列�
 
 ### 3. 親コンポーネントの派生状態は `watch` や `computed` で整合性を保つ
 - 入力値の変更に伴って親側の別状態（例: スロット配列 `slots`）の同期が必要な場合は、入力ハンドラで命令的に再生成するのではなく、`watch` や `computed` でリアクティブに追従させ、UI レンダリングと状態ロジックを分離してください。
+
+## リンク（HTML `<a>` タグ）と `rel` 属性のガイドライン
+
+### `rel="noopener"` は明示しない
+- **理由**: モダンブラウザ（Chrome 88+、Safari 12.1+、Firefox 79+ 等）では、`target="_blank"` を指定したリンクに対して暗黙的に `rel="noopener"` の挙動（`window.opener` を null にする）が標準で適用されます。
+- **ルール**: `target="_blank"` 属性を持つリンクに `rel="noopener"` を手動で明示する必要はありません。`rel` 属性には、セマンティクス上必要な関係性（例: `rel="external"`, `rel="author"`, `rel="terms-of-service"`, `rel="privacy-policy"`, `rel="ugc nofollow"` 等）のみを記述してください。
+

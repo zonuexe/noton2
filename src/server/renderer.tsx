@@ -49,7 +49,7 @@ export const renderer = jsxRenderer(({ children, title, description, ogImage, og
   const safeAvatarUrl = sanitizeHttpsUrl(user?.avatarUrl)
 
   return (
-    <html lang="ja">
+    <html lang="ja" prefix="og: https://ogp.me/ns#">
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />

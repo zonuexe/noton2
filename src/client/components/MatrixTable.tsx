@@ -265,13 +265,18 @@ export const MatrixTable = defineVaporComponent({
                           return (
                             <div key={p.id} class="flex items-center gap-2">
                               {/* 左側: メンバー名ボックス */}
-                              <div class="h-card w-28 sm:w-32 md:w-36 shrink-0 h-6 sm:h-7 border border-stone-300 rounded bg-white px-2 py-0.5 text-xs text-stone-800 flex items-center justify-between gap-1">
+                              <div
+                                class="h-card w-28 sm:w-32 md:w-36 shrink-0 h-6 sm:h-7 border border-stone-300 rounded bg-white px-2 py-0.5 text-xs text-stone-800 flex items-center justify-between gap-1"
+                                property="attendee"
+                                typeof="Person"
+                              >
                                 <div class="flex items-center gap-1 min-w-0 flex-1">
                                   {avatarUrl ? (
                                     <img
                                       src={avatarUrl}
                                       alt=""
                                       aria-hidden="true"
+                                      property="image"
                                       class="u-photo w-3.5 h-3.5 rounded-full shrink-0 border border-stone-200"
                                       title={p.user ? `@${p.user.username}` : undefined}
                                     />
@@ -280,6 +285,7 @@ export const MatrixTable = defineVaporComponent({
                                     <button
                                       type="button"
                                       onClick={scrollToAnswerForm}
+                                      property="name"
                                       class="p-name text-left truncate cursor-pointer underline text-sky-700 font-extrabold"
                                       title={
                                         p.user
@@ -292,6 +298,7 @@ export const MatrixTable = defineVaporComponent({
                                   ) : (
                                     <span
                                       class="p-name truncate text-stone-700 font-medium"
+                                      property="name"
                                       title={p.user ? `${p.name} (@${p.user.username})` : p.name}
                                     >
                                       {p.name}
@@ -475,9 +482,13 @@ export const MatrixTable = defineVaporComponent({
                     <blockquote
                       key={`comm-${p.id}`}
                       class="bg-white p-2.5 rounded-lg border border-stone-200 shadow-2xs flex items-start gap-2 m-0"
+                      property="comment"
+                      typeof="Comment"
                     >
-                      <cite class="not-italic font-bold text-stone-800 shrink-0">{p.name}:</cite>
-                      <span class="text-stone-600 break-words">
+                      <cite class="not-italic font-bold text-stone-800 shrink-0" property="author" typeof="Person">
+                        <span property="name">{p.name}</span>:
+                      </cite>
+                      <span class="text-stone-600 break-words" property="text">
                         {parseTextWithUrls(p.comment).map((seg, idx) =>
                           seg.isUrl && seg.url ? (
                             <a

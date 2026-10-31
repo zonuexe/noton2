@@ -1134,11 +1134,11 @@ export const EventCreator = defineVaporComponent({
                 )}
                 <p class="text-center text-[11px] text-stone-400">
                   作成することで、
-                  <a href="/terms" target="_blank" class="underline hover:text-stone-600">
+                  <a href="/terms" target="_blank" rel="terms-of-service" class="underline hover:text-stone-600">
                     利用規約
                   </a>
                   および
-                  <a href="/privacy" target="_blank" class="underline hover:text-stone-600">
+                  <a href="/privacy" target="_blank" rel="privacy-policy" class="underline hover:text-stone-600">
                     プライバシーポリシー
                   </a>
                   に同意したものとみなされます。
