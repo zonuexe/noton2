@@ -16,8 +16,8 @@
     "cf": "cf"
   },
   "dependencies": {
-    "hono": "^4.13.14",
-    "vue": "3.6.0-rc.13"
+    "hono": "^4.13.16",
+    "vue": "3.6.0-rc.14"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.65.0",
